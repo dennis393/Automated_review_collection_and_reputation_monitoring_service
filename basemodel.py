@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from datetime import datetime
 
 #Для создания компании
@@ -7,18 +7,18 @@ class CreateCompany(BaseModel):
 
 #Для регистрации
 class UserRegistration(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 #Для входа    
 class UserLogin(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 #Возвращаем пользователю ответ 
 class UserResponse(BaseModel):
     id: int
-    email: str
+    email: EmailStr
     created_at: datetime   
     
 class Token(BaseModel):
@@ -26,5 +26,5 @@ class Token(BaseModel):
     token_type: str
     
 class TokenData(BaseModel):
-    email: str | None = None
+    email: EmailStr | None = None
     

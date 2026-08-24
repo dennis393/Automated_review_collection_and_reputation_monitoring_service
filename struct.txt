@@ -1,0 +1,65 @@
+reputation_management/
+├── .env.example              # Шаблон переменных окружения (в Git)
+├── .env                      # Реальные ключи и доступы (в .gitignore!)
+├── .gitignore
+├── README.md
+├── docker-compose.yml        # Для запуска Postgres + Redis в Codespace
+├── requirements.txt
+│
+├── alembic/                  # Миграции базы данных
+│   └── versions/
+├── alembic.ini
+│
+└── app/                      # Исходный код приложения
+    ├── init.py
+    ├── main.py               # Точка входа FastAPI (подключение роутов)
+    ├── config.py             # Загрузка .env через pydantic-settings
+    │
+    ├── core/                 # Общие системные вещи
+    │   ├── init.py
+    │   ├── db.py             # Настройка SQLAlchemy async session
+    │   ├── security.py       # Хэширование паролей, генерация JWT
+    │   └── celery_app.py     # Инициализация Celery и Redis
+    │
+    ├── models/               # SQLAlchemy модели (ИМПОРТ ВСЕХ МОДЕЛЕЙ ЗДЕСЬ)
+    │   ├── init.py       # Сюда импортируются все модели для Alembic
+    │   ├── user.py
+    │   ├── company.py
+    │   ├── branch.py
+    │   └── review.py
+    │
+    ├── api/                  # REST API эндпоинты (Зона Разработчика А)
+    │   ├── init.py
+    │   ├── router.py         # Главный роутер, объединяющий все v1 эндпоинты
+    │   ├── v1/
+    │   │   ├── auth.py       # /api/v1/auth (login, register)
+    │   │   ├── companies.py  # /api/v1/companies
+    │   │   ├── branches.py   # /api/v1/branches
+    │   │   └── reviews.py    # /api/v1/reviews
+    │   └── schemas/          # Pydantic схемы (входные и выходные DTO)
+    │       ├── user.py
+    │       ├── company.py
+    │       └── review.py
+    │
+    ├── bot/                  # Telegram Бот (Зона Разработчика А)
+    │   ├── init.py
+    │   ├── main.py           # Запуск aiogram бота
+    │   ├── handlers.py       # Обработчики команд (/start) и нажатий кнопок
+    │   └── keyboads.py       # Inline-кнопки (Принять / Изменить)
+    │
+    └── services/             # Фоновые сервисы и бизнес-логика (Зона Разработчика Б)
+        ├── init.py
+        ├── collectors/       # Модули сбора отзывов
+        │   ├── init.py
+        │   ├── base.py       # Базовый класс для парсеров
+        │   ├── twogis.py     # Скрапер 2ГИС
+        │   └── yandex.py     # Скрапер Яндекс Карт
+        │
+        ├── ai/               # Интеграция с ИИ
+        │   ├── init.py
+        │   └── openai_service.py # Генерация ответов через gpt-4o-mini
+        │
+        └── tasks/            # Celery задачи
+            ├── init.py
+            ├── fetch_reviews.py # Фоновый сбор отзывов каждые N минут
+            └── process_ai.py    # Генерация ответов и отправка таски в ТГ
