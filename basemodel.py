@@ -10,7 +10,7 @@ class UserRegistration(BaseModel):
     email: EmailStr
     password: str
 
-#Для входа    
+#Для аутентификации  
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
