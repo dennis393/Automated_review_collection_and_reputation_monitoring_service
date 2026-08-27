@@ -19,7 +19,14 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: int
     email: EmailStr
-    created_at: datetime   
+    created_at: datetime 
+
+#Возвращаем ответ по компании и пользователе
+class CompanyResponse(BaseModel):
+    id: int 
+    name: str
+    user_id: int
+    created_at: datetime 
     
 class Token(BaseModel):
     access_token: str

@@ -2,18 +2,16 @@
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Annotated
 from fastapi import Depends, HTTPException, status
-from dotenv import load_dotenv #Для загрузки данных из файла .env
-import os
+from config import Settings
 from pwdlib import PasswordHash
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
 from jwt.exceptions import InvalidTokenError
 from basemodel import UserRegistration, Token, TokenData
 from orm import Users, get_db
+import os
 
 password_hash = PasswordHash.recommended()
-
-load_dotenv() #Грузим данные из файла .env
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
@@ -56,6 +54,16 @@ def verify_token(token: str, credentials_exception):
 def get_user(db, email:str):
      return db.query(Users).filter(Users.email == email).first()
 
+def get_email_from_token(token: str=Depends(auth_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+        if not email:
+            raise HTTPException(status_code=401, detail="Невалидный токен")
+        return email
+    except InvalidTokenError as e:
+        print(f"Здесь ошибка:{e}")
+        raise HTTPException(status_code=401, detail="Невалидный токен")
 
 #Текущий пользователь
 def get_curr_user(token: Annotated[str, Depends(auth_scheme )], db = Depends(get_db)):
