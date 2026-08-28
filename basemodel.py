@@ -28,6 +28,10 @@ class CompanyResponse(BaseModel):
     user_id: int
     created_at: datetime 
     
+#Для изменения имени компании
+class RenameCompany(BaseModel):
+    name: str
+    
 class Token(BaseModel):
     access_token: str
     token_type: str

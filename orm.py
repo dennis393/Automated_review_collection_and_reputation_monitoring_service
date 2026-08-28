@@ -1,11 +1,15 @@
-from sqlalchemy import create_engine, MetaData, Column, Integer, String, Boolean, ForeignKey, DateTime, func
+import asyncio
+from fastapi import FastAPI
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from contextlib import asynccontextmanager
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, func
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from dotenv import load_dotenv #Для postgree, данные подключения тоже хранятся в .env
 import os
-import psycopg2
+
 
 
 class Base(DeclarativeBase):
@@ -13,9 +17,7 @@ class Base(DeclarativeBase):
 
 load_dotenv()
 
-DATABASE_CONN = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
-
-engine = create_engine(DATABASE_CONN)
+DATABASE_CONN = create_async_engine(f"postgresql+asyncpg://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}")
 
 #Таблица Users
 class Users(Base):
@@ -36,15 +38,16 @@ class Companies(Base):
     user = relationship("Users", back_populates="companies") #Связь с таблицой users
     
 
-sessionlocal = sessionmaker(bind=engine)   
+async_sessionlocal = sessionmaker(bind=DATABASE_CONN, class_=AsyncSession, expire_on_commit=False)   
 
-Base.metadata.create_all(bind=engine)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with DATABASE_CONN.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+    await DATABASE_CONN.disponse()
 
-def get_db():
-    db = sessionlocal()
-    try:
-        yield db
-    finally:
-        db.close()
+print("done orm")
+
 
  

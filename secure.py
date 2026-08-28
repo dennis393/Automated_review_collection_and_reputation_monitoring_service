@@ -8,8 +8,9 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
 from jwt.exceptions import InvalidTokenError
 from basemodel import UserRegistration, Token, TokenData
-from orm import Users, get_db
+from orm import Users, async_sessionlocal
 import os
+from sqlalchemy import select
 
 password_hash = PasswordHash.recommended()
 
@@ -51,8 +52,12 @@ def verify_token(token: str, credentials_exception):
     return token_data
 
 #Ищем пользователя в бд
-def get_user(db, email:str):
-     return db.query(Users).filter(Users.email == email).first()
+async def get_user(email:str):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(select(Users).where(Users.email == email))
+        return res.scalars().first() 
+        
+        
 
 def get_email_from_token(token: str=Depends(auth_scheme)):
     try:
@@ -66,14 +71,17 @@ def get_email_from_token(token: str=Depends(auth_scheme)):
         raise HTTPException(status_code=401, detail="Невалидный токен")
 
 #Текущий пользователь
-def get_curr_user(token: Annotated[str, Depends(auth_scheme )], db = Depends(get_db)):
-      credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Не удалось проверить учетные данные",
-        headers={"WWW-Authenticate": "Bearer"},
+async def get_curr_user(token: Annotated[str, Depends(auth_scheme )]):
+    credentials_exception = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Не удалось проверить учетные данные",
+    headers={"WWW-Authenticate": "Bearer"},
     )
-      token_data = verify_token(token, credentials_exception)
-      user = get_user(db, token_data.email)
-      if user is None:
-           raise credentials_exception
-      return user
+        
+    token_data = verify_token(token, credentials_exception)
+    user = await get_user(token_data.email)
+    if user is None:
+        raise credentials_exception
+    return user
+
+print("done secure")
