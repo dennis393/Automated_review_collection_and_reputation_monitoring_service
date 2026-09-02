@@ -1,8 +1,8 @@
 from fastapi import FastAPI
-from orm import Base
+from orm import Base, lifespan
 from routs import router
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 app.include_router(router)
 
 def main():

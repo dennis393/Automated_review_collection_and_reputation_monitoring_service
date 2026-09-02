@@ -58,7 +58,7 @@ async def get_user(email:str):
         return res.scalars().first() 
         
         
-
+#Декодируем JWT и вытаскиваем email
 def get_email_from_token(token: str=Depends(auth_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -67,7 +67,6 @@ def get_email_from_token(token: str=Depends(auth_scheme)):
             raise HTTPException(status_code=401, detail="Невалидный токен")
         return email
     except InvalidTokenError as e:
-        print(f"Здесь ошибка:{e}")
         raise HTTPException(status_code=401, detail="Невалидный токен")
 
 #Текущий пользователь
@@ -84,4 +83,3 @@ async def get_curr_user(token: Annotated[str, Depends(auth_scheme )]):
         raise credentials_exception
     return user
 
-print("done secure")
