@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from typing import List
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from contextlib import asynccontextmanager
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, func, Text
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, func, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -24,7 +24,7 @@ DATABASE_CONN = create_async_engine(f"postgresql+asyncpg://{os.getenv('DB_USER')
 class Users(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(String(50))
+    email: Mapped[str] = mapped_column(String(50), unique=True)
     password_hash: Mapped[str] = mapped_column(String(200), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     companies: Mapped[List["Companies"]] = relationship(back_populates="user", cascade="all, delete-orphan") #Связь с таблицой companies, у одного юзера может быть несколько компаний,
@@ -58,15 +58,16 @@ class Reviews(Base):
     __tablename__ = "reviews"
     id: Mapped[int] = mapped_column(primary_key=True)
     branch_id: Mapped[int] = mapped_column(ForeignKey("branches.id", ondelete="CASCADE"), nullable=False) # Связываем числовой ID отзыва с числовым ID филиала
-    external_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False) # В каком формате Яндекс отдает ID???
+    external_id: Mapped[str] = mapped_column(String(255), nullable=False) # В каком формате Яндекс отдает ID???
     author_name: Mapped[str] = mapped_column(String(200))
     rating: Mapped[int] = mapped_column(nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False) # Сам текст отзыва клиента
-    pub_date: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    pub_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     ai_draft: Mapped[str | None] = mapped_column(Text, nullable=True)
     final_reply: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(default="new", nullable=False) #Автоматически для ответов ИИ 
     branch: Mapped["Branches"] = relationship(back_populates="reviews")
+    __table_args__ = (UniqueConstraint("branch_id", "external_id"),)
      
 
 async_sessionlocal = sessionmaker(bind=DATABASE_CONN, class_=AsyncSession, expire_on_commit=False)   

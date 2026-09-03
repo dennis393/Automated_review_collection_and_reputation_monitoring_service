@@ -1,6 +1,6 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, HttpUrl, Field
 from datetime import datetime
-
+from typing import Literal
 #Для создания компании
 class CreateCompany(BaseModel):
     company_name: str
@@ -24,13 +24,33 @@ class UserResponse(BaseModel):
 #Возвращаем ответ по компании и пользователе
 class CompanyResponse(BaseModel):
     id: int 
-    name: str
+    company_name: str
     user_id: int
     created_at: datetime 
     
 #Для изменения имени компании
 class RenameCompany(BaseModel):
-    name: str
+    company_name: str
+
+#Для создания ссылки на компанию, название платформы, описание
+class CreateBranch(BaseModel):
+    company_id: int
+    title: str = Field(max_length=700, description="Название точки")
+    platform: Literal["yandex", "2gis", "uzum"] = Field(description="Только платформы Yandex, 2GIS, Uzum")
+    url: HttpUrl = Field(description="Полная ссылка на филиал")
+
+#Для возврата пользователю всех его филиалов    
+class ResponseBranch(BaseModel):
+    id: int
+    company_id: int
+    title: str
+    platform: str
+    url: HttpUrl
+    
+#Для роута PUT обновление ссылки или названия филиала
+class UpdateBranch(BaseModel):
+    title: str | None = None 
+    url: HttpUrl | None = None
     
 class Token(BaseModel):
     access_token: str

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
-from basemodel import UserRegistration, UserLogin, CreateCompany, UserResponse, Token, CompanyResponse, RenameCompany
-from orm import async_sessionlocal, Users, Companies
+from basemodel import UserRegistration, UserLogin, CreateCompany, UserResponse, Token, CompanyResponse, RenameCompany,  CreateBranch, ResponseBranch,  UpdateBranch
+from orm import async_sessionlocal, Users, Companies, Branches
 from secure import get_password_hash, verify_password, create_access_token, get_user, get_curr_user, auth_scheme, get_email_from_token
 from fastapi.security import OAuth2PasswordRequestForm
 from config import Settings
@@ -26,13 +26,13 @@ async def create_new_user(new_user: UserRegistration):
         hashed_password = get_password_hash(new_user.password)
     
         #Pydantic модель нельзя добавить в бд, создаем ORM объект
-    user_db = Users(email=new_user.email, password_hash=hashed_password)
+        user_db = Users(email=new_user.email, password_hash=hashed_password)
     
-    #добавляем пользователя в бд
-    sess.add(user_db)
-    await sess.commit()
+        #добавляем пользователя в бд
+        sess.add(user_db)
+        await sess.commit()
     
-    return "Пользователь успешно добавлен"
+        return "Пользователь успешно добавлен"
 
 
 #Роутер для аутентификации
@@ -86,6 +86,61 @@ async def rename_company(id_company: int, new_name: RenameCompany, current_user:
         await sess.commit()
         await sess.refresh(company)
         return company 
+
+#____________________________________________________________________________________________________________________
+#Роуты для таблицы branches(добавление филиалов)
+@router.post("/add_branch", response_model=str)
+async def add_branch(add_brnch: CreateBranch, current_user: Users =  Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(select(Companies).where(Companies.id == add_brnch.company_id, Companies.user_id == current_user.id))
+        
+        company = res.scalars().first()
+        
+        if company is None:
+            raise HTTPException(status_code=404, detail="Компания не найдена")
+        
+        new_branch = Branches(
+            company_id=add_brnch.company_id,
+            platform=add_brnch.platform,
+            title=add_brnch.title,
+            url=str(add_brnch.url),
+        )
+        sess.add(new_branch)
+        await sess.commit()
+        
+    return "Филиал успешно добавлен"
+
+
+#Показываем пользователю все его филиалы
+@router.get("/get_branches", response_model=list[ResponseBranch])
+async def get_branch(current_user: Users = Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(select(Branches).join(Companies).where(Companies.user_id == current_user.id))
+        branches = res.scalars().all()
+    return branches
+
+
+#Обновляем название филиала или ссылки
+@router.put("/update_name_or_url/{id_branch}", response_model=ResponseBranch)
+async def update_name_url(id_branch: int, new_names:UpdateBranch, current_user: Users = Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(select(Branches).join(Companies).where(Companies.user_id == current_user.id, Branches.id == id_branch))
+        branch = res.scalars().first()
+        
+        if branch is None:
+             raise HTTPException(status_code=404, detail="Филиал не найден")
+            
+        if new_names.title is not None:
+            branch.title = new_names.title
+            
+        if new_names.url is not None:
+            branch.url = str(new_names.url)
+        await sess.commit()
+        await sess.refresh(branch)    
+        return branch
+    
+            
+ 
         
              
     

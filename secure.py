@@ -20,7 +20,7 @@ LIVE_TOKEN_MINUTES = int(os.getenv("LIVE_MINUTES_TOKEN"))
 
 auth_scheme = OAuth2PasswordBearer(tokenUrl="token", description="Сюда вводим Email")
 
-#Верификация пароля, возвращает хэштрованный пароль
+#Верификация пароля, возвращает True / False
 def verify_password(plain_password: str, hashed_password: str):
     return password_hash.verify(plain_password, hashed_password)
 
