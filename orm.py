@@ -27,6 +27,7 @@ class Users(Base):
     email: Mapped[str] = mapped_column(String(50), unique=True)
     password_hash: Mapped[str] = mapped_column(String(200), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    language_code: Mapped[str] = mapped_column(String(200), default="ru")
     companies: Mapped[List["Companies"]] = relationship(back_populates="user", cascade="all, delete-orphan") #Связь с таблицой companies, у одного юзера может быть несколько компаний,
                                                                                                                         #При удалении юзера удаляться все его компании
     
@@ -40,7 +41,7 @@ class Companies(Base):
     user: Mapped["Users"] = relationship(back_populates="companies") #Связь с таблицой users
     # При удалении компании автоматически удалятся все её филиалы.
     branches: Mapped[List["Branches"]] = relationship(back_populates="company", cascade="all, delete-orphan")
-
+    telegram_settings: Mapped[List["Telegram"]] = relationship(back_populates="company", cascade="all, delete-orphan")
 
 #Таблица branches(филиалы / Точки на карте)
 class Branches(Base):
@@ -51,6 +52,8 @@ class Branches(Base):
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     url: Mapped[str] = mapped_column(Text, nullable=False)
     company: Mapped["Companies"] = relationship(back_populates="branches")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    reply_language: Mapped[str] = mapped_column(String(200), default="auto")
     reviews: Mapped[List["Reviews"]] = relationship(back_populates="branch", cascade="all, delete-orphan") # При удалении филиала автоматически удалятся все его отзывы.
 
 #Таблица отзывы
@@ -59,7 +62,7 @@ class Reviews(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     branch_id: Mapped[int] = mapped_column(ForeignKey("branches.id", ondelete="CASCADE"), nullable=False) # Связываем числовой ID отзыва с числовым ID филиала
     external_id: Mapped[str] = mapped_column(String(255), nullable=False) # В каком формате Яндекс отдает ID???
-    author_name: Mapped[str] = mapped_column(String(200))
+    author_name: Mapped[str] = mapped_column(String(200), nullable=True)
     rating: Mapped[int] = mapped_column(nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False) # Сам текст отзыва клиента
     pub_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
@@ -68,6 +71,14 @@ class Reviews(Base):
     status: Mapped[str] = mapped_column(default="new", nullable=False) #Автоматически для ответов ИИ 
     branch: Mapped["Branches"] = relationship(back_populates="reviews")
     __table_args__ = (UniqueConstraint("branch_id", "external_id"),)
+    
+#Таблица для телеграмма, одна компания может иметь несколько тг чатов
+class Telegram(Base):
+    __tablename__ = "telegram_settings"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    chat_id: Mapped[int] = mapped_column(nullable=False)
+   
      
 
 async_sessionlocal = sessionmaker(bind=DATABASE_CONN, class_=AsyncSession, expire_on_commit=False)   

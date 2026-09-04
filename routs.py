@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
-from basemodel import UserRegistration, UserLogin, CreateCompany, UserResponse, Token, CompanyResponse, RenameCompany,  CreateBranch, ResponseBranch,  UpdateBranch
+from basemodel import UserRegistration, UserLogin, CreateCompany, UserResponse, Token, CompanyResponse, RenameCompany,  CreateBranch, ResponseBranch,  UpdateBranch, ResponseReview, UpdateReview
 from orm import async_sessionlocal, Users, Companies, Branches
 from secure import get_password_hash, verify_password, create_access_token, get_user, get_curr_user, auth_scheme, get_email_from_token
 from fastapi.security import OAuth2PasswordRequestForm
@@ -111,11 +111,11 @@ async def add_branch(add_brnch: CreateBranch, current_user: Users =  Depends(get
     return "Филиал успешно добавлен"
 
 
-#Показываем пользователю все его филиалы
+#Показываем пользователю все его активные филиалы, деактивированные не показывает
 @router.get("/get_branches", response_model=list[ResponseBranch])
 async def get_branch(current_user: Users = Depends(get_curr_user)):
     async with async_sessionlocal() as sess:
-        res = await sess.execute(select(Branches).join(Companies).where(Companies.user_id == current_user.id))
+        res = await sess.execute(select(Branches).join(Companies).where(Companies.user_id == current_user.id, Branches.is_active == True))
         branches = res.scalars().all()
     return branches
 
@@ -124,11 +124,11 @@ async def get_branch(current_user: Users = Depends(get_curr_user)):
 @router.put("/update_name_or_url/{id_branch}", response_model=ResponseBranch)
 async def update_name_url(id_branch: int, new_names:UpdateBranch, current_user: Users = Depends(get_curr_user)):
     async with async_sessionlocal() as sess:
-        res = await sess.execute(select(Branches).join(Companies).where(Companies.user_id == current_user.id, Branches.id == id_branch))
+        res = await sess.execute(select(Branches).join(Companies).where(Companies.user_id == current_user.id, Branches.id == id_branch, Branches.is_active == True))
         branch = res.scalars().first()
         
         if branch is None:
-             raise HTTPException(status_code=404, detail="Филиал не найден")
+            raise HTTPException(status_code=404, detail="Филиал не найден")
             
         if new_names.title is not None:
             branch.title = new_names.title
@@ -138,6 +138,55 @@ async def update_name_url(id_branch: int, new_names:UpdateBranch, current_user: 
         await sess.commit()
         await sess.refresh(branch)    
         return branch
+    
+#Деактивируем филиал если клиент закрыл точку чтобы парсер его не отслеживал
+@router.delete("/deactivate_branch/{id_branch}", response_model=str)
+async def deactivate_branch(id_branch: int, current_user: Users = Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(select(Branches).join(Companies).where(Companies.user_id == current_user.id, Branches.id == id_branch))
+        branch = res.scalars().first()
+        
+        if branch is None:
+            raise HTTPException(status_code=404, detail="Филиал не найден")
+        if not branch.is_active: 
+            raise HTTPException(status_code=400, detail="Филиал уже деактивирован")
+        
+        branch.is_active = False
+        await sess.commit()
+        return "Филиал деактивирован"
+    
+#________________________________________________________________________________________________________
+#Роуты для таблицы Отзывы
+#Функция для возврата отзывов, сделал Limit и offset для ограничения высалки отзывов
+@router.get("/get_review", response_model=list[ResponseReview])
+async def get_review(curr_user: Users = Depends(get_curr_user), limit: int = 30, offset: int = 0):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(select(Reviews)
+        .join(Branches, Reviews.branch_id == Branches.id)
+        .join(Companies, Branches.company_id == Companies.id)
+        .where(Companies.user_id == curr_user.id).order_by(Reviews.pub_date.desc())
+        .limit(limit)
+        .offset(offset))
+        rev = res.scalars().all()
+        return rev
+
+#Роут для редактирования ответа ИИ
+@router.put("/update_ai_answer/{id_review}",response_model=ResponseReview)
+async def update_ai_response(id_review: int, update_data: UpdateReview, curr_user: Users = Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(select(Reviews).join(Branches, Reviews.branch_id == Branches.id).join(Companies, Branches.company_id == Companies.id).where(Companies.user_id == curr_user.id, Reviews.id == id_review))
+        rev = res.scalars().first()
+        
+        if rev is None:
+            raise HTTPException(status_code=404, detail="Отзыв не найден")
+        
+        rev.ai_draft = update_data.ai_draft
+        
+        await sess.commit()
+        await sess.refresh(rev)  
+        return rev  
+         
+            
     
             
  
