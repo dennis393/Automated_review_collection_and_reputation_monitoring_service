@@ -197,40 +197,10 @@ async def update_ai_response(id_review: int, update_data: UpdateReview, curr_use
         await sess.refresh(rev)  
         return rev  
 '''
-'''
 
 
-Filials
-POST   /filials             — создать филиал
-GET    /filials             — список своих филиалов
-PATCH  /filials/{id}        — обновить филиал
-DELETE /filials/{id}        — удалить филиал
 
-MonitoringResourses
-POST   /sources             — добавить источник к филиалу
-GET    /sources/{filial_id} — источники конкретного филиала
-PATCH  /sources/{id}        — обновить / включить / выключить
-DELETE /sources/{id}        — удалить источник
 
-PlatformData (маркетплейсы)
-POST   /credentials         — добавить токен маркетплейса
-GET    /credentials         — список подключённых маркетплейсов
-PATCH  /credentials/{id}    — обновить токен
-DELETE /credentials/{id}    — отключить маркетплейс
-
-Reviews
-GET /reviews                — список отзывов (фильтры: платформа, рейтинг, статус)
-GET /reviews/{id}           — конкретный отзыв с черновиком
-
-AIDrafts
-PATCH /drafts/{id}          — обновить edited_text и статус
-
-Telegram
-GET    /telegram/token      — получить свой telegram_token для привязки бота
-DELETE /telegram/unlink     — отвязать Telegram
-'''         
-            
-    
             
  
         
