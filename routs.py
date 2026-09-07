@@ -1,8 +1,9 @@
+import secrets
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
-from basemodel import UserRegistration, UserLogin, CreateCompany, UserResponse, Token, CompanyResponse, RenameCompany,  CreateBranch, ResponseBranch,  UpdateBranch, ResponseReview, UpdateReview
-from orm import async_sessionlocal, Users, Companies, Branches
-from secure import get_password_hash, verify_password, create_access_token, get_user, get_curr_user, auth_scheme, get_email_from_token
+from basemodel import UserCreate, ResponseUser, CreateCompany, CompanyResponse, RenameCompany
+from orm import async_sessionlocal, Users, Companies
+from secure import get_password_hash, verify_password, create_access_token, get_user, get_curr_user, auth_scheme, get_email_from_token, Token
 from fastapi.security import OAuth2PasswordRequestForm
 from config import Settings
 from fastapi import Depends
@@ -10,9 +11,9 @@ from fastapi import Depends
 
 router = APIRouter()
 
-#Создаем нового пользователя, роут принимает Pydantic модель 
-@router.post("/register", response_model=str)
-async def create_new_user(new_user: UserRegistration):
+#Создаем нового пользователя, роут принимает Pydantic модель den@gmail.com l
+@router.post("/register", response_model=ResponseUser)
+async def create_new_user(new_user: UserCreate):
     async with async_sessionlocal() as sess:
         result = await sess.execute(select(Users).where(Users.email == new_user.email))
         user = result.scalars().first()
@@ -26,13 +27,14 @@ async def create_new_user(new_user: UserRegistration):
         hashed_password = get_password_hash(new_user.password)
     
         #Pydantic модель нельзя добавить в бд, создаем ORM объект
-        user_db = Users(email=new_user.email, password_hash=hashed_password)
+        user_db = Users(full_name=new_user.full_name, email=new_user.email, password_hash=hashed_password, telegram_token=secrets.token_hex(16)) #Тут же гененрим тг токен пользователя
     
         #добавляем пользователя в бд
         sess.add(user_db)
         await sess.commit()
+        await sess.refresh(user_db)
     
-        return "Пользователь успешно добавлен"
+        return user_db
 
 
 #Роутер для аутентификации
@@ -42,11 +44,14 @@ async def auth(user_data:  OAuth2PasswordRequestForm=Depends()):
     if not user or not verify_password(user_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Неверный email или пароль")
     
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Аккаунт отключен")
+         
     token = create_access_token({"sub": user.email})
     return {"access_token": token, "token_type": "bearer"}
 
 #Роутер для получения текущего пользователя
-@router.get("/users/me", response_model=UserResponse)
+@router.get("/users/me", response_model=ResponseUser)
 async def get_current_user(user_email: str=Depends(get_email_from_token)): 
     async with async_sessionlocal() as sess:
         res = await sess.execute(select(Users).where(Users.email == user_email))
@@ -54,12 +59,13 @@ async def get_current_user(user_email: str=Depends(get_email_from_token)):
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
         return user
+
 #___________________________________________________________________________________________________________________
 #Внизу роуты для таблицы Companies 
 @router.post("/Create_company", response_model=CompanyResponse)
 async def create_company(company: CreateCompany, current_user: Users = Depends(get_curr_user)):
     async with async_sessionlocal() as sess:
-        new_company = Companies(name=company.company_name, user_id=current_user.id)
+        new_company = Companies(company_name=company.company_name,company_description=company.company_description, users_id=current_user.id)
         sess.add(new_company)
         await sess.commit()
         await sess.refresh(new_company)
@@ -69,24 +75,29 @@ async def create_company(company: CreateCompany, current_user: Users = Depends(g
 @router.get("/View_company", response_model=list[CompanyResponse])
 async def view_company(current_user: Users = Depends(get_curr_user)):
     async with async_sessionlocal() as sess:
-        res = await sess.execute(select(Companies).where(Companies.user_id==current_user.id))
-        return res.scalars().all()
-
+        res = await sess.execute(select(Companies).where(Companies.users_id==current_user.id))
+        companies = res.scalars().all()
+        
+        if not companies:
+            raise HTTPException(status_code=404, detail="Компания не найдена")
+        return companies
+            
 #Роутер для изменения названия компании
 @router.patch("/rename_company/{id_company}", response_model=CompanyResponse)
 async def rename_company(id_company: int, new_name: RenameCompany, current_user: Users = Depends(get_curr_user)):
     async with async_sessionlocal() as sess:
-        res = await sess.execute(select(Companies).where(Companies.id == id_company, Companies.user_id == current_user.id))
+        res = await sess.execute(select(Companies).where(Companies.id == id_company, Companies.users_id == current_user.id))
         company = res.scalars().first()
          
         if company is None:
             raise HTTPException(status_code=404, detail="Компания не найдена")
         
-        company.name = new_name.name
+        company.company_name = new_name.company_name
+        company.company_description = new_name.company_description
         await sess.commit()
         await sess.refresh(company)
         return company 
-
+'''
 #____________________________________________________________________________________________________________________
 #Роуты для таблицы branches(добавление филиалов)
 @router.post("/add_branch", response_model=str)
@@ -185,7 +196,39 @@ async def update_ai_response(id_review: int, update_data: UpdateReview, curr_use
         await sess.commit()
         await sess.refresh(rev)  
         return rev  
-         
+'''
+'''
+
+
+Filials
+POST   /filials             — создать филиал
+GET    /filials             — список своих филиалов
+PATCH  /filials/{id}        — обновить филиал
+DELETE /filials/{id}        — удалить филиал
+
+MonitoringResourses
+POST   /sources             — добавить источник к филиалу
+GET    /sources/{filial_id} — источники конкретного филиала
+PATCH  /sources/{id}        — обновить / включить / выключить
+DELETE /sources/{id}        — удалить источник
+
+PlatformData (маркетплейсы)
+POST   /credentials         — добавить токен маркетплейса
+GET    /credentials         — список подключённых маркетплейсов
+PATCH  /credentials/{id}    — обновить токен
+DELETE /credentials/{id}    — отключить маркетплейс
+
+Reviews
+GET /reviews                — список отзывов (фильтры: платформа, рейтинг, статус)
+GET /reviews/{id}           — конкретный отзыв с черновиком
+
+AIDrafts
+PATCH /drafts/{id}          — обновить edited_text и статус
+
+Telegram
+GET    /telegram/token      — получить свой telegram_token для привязки бота
+DELETE /telegram/unlink     — отвязать Telegram
+'''         
             
     
             

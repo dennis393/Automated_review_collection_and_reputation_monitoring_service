@@ -1,6 +1,47 @@
 from pydantic import BaseModel, EmailStr, HttpUrl, Field
 from datetime import datetime
 from typing import Literal
+
+#Для создания пользователя
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+
+#Для вывода пользователю информации о нем
+class ResponseUser(BaseModel):
+    id: int
+    email: EmailStr
+    full_name: str
+    created_at: datetime
+
+#Для регистрации компании
+class CreateCompany(BaseModel):
+    company_name: str
+    company_description: str
+
+#Для показа пользователю
+class CompanyResponse(BaseModel):
+    id: int
+    company_name: str
+    company_description: str
+    created_at: datetime
+    
+class RenameCompany(BaseModel):
+    company_name: str
+    company_description: str
+    
+  
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    
+class TokenData(BaseModel):
+    email: EmailStr | None = None
+
+'''
 #Для создания компании
 class CreateCompany(BaseModel):
     company_name: str
@@ -74,4 +115,5 @@ class Token(BaseModel):
     
 class TokenData(BaseModel):
     email: EmailStr | None = None
+'''
     

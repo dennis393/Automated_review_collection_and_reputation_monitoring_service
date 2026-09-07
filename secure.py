@@ -7,7 +7,7 @@ from pwdlib import PasswordHash
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
 from jwt.exceptions import InvalidTokenError
-from basemodel import UserRegistration, Token, TokenData
+from basemodel import  UserCreate, Token, TokenData
 from orm import Users, async_sessionlocal
 import os
 from sqlalchemy import select
