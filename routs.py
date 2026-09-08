@@ -1,8 +1,8 @@
 import secrets
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
-from basemodel import UserCreate, ResponseUser, CreateCompany, CompanyResponse, RenameCompany
-from orm import async_sessionlocal, Users, Companies
+from basemodel import UserCreate, ResponseUser, CreateCompany, CompanyResponse, RenameCompany, CreateFilial, FilialResponse, UpdateFilial
+from orm import async_sessionlocal, Users, Companies, Filials
 from secure import get_password_hash, verify_password, create_access_token, get_user, get_curr_user, auth_scheme, get_email_from_token, Token
 from fastapi.security import OAuth2PasswordRequestForm
 from config import Settings
@@ -97,59 +97,60 @@ async def rename_company(id_company: int, new_name: RenameCompany, current_user:
         await sess.commit()
         await sess.refresh(company)
         return company 
-'''
+    
+
 #____________________________________________________________________________________________________________________
 #Роуты для таблицы branches(добавление филиалов)
-@router.post("/add_branch", response_model=str)
-async def add_branch(add_brnch: CreateBranch, current_user: Users =  Depends(get_curr_user)):
+@router.post("/add_filial", response_model=FilialResponse)
+async def add_filial(add_filial: CreateFilial, current_user: Users =  Depends(get_curr_user)):
     async with async_sessionlocal() as sess:
-        res = await sess.execute(select(Companies).where(Companies.id == add_brnch.company_id, Companies.user_id == current_user.id))
+        res = await sess.execute(select(Companies).where(Companies.id == add_filial.company_id, Companies.users_id == current_user.id))
         
-        company = res.scalars().first()
+        filial = res.scalars().first()
         
-        if company is None:
+        if filial is None:
             raise HTTPException(status_code=404, detail="Компания не найдена")
         
-        new_branch = Branches(
-            company_id=add_brnch.company_id,
-            platform=add_brnch.platform,
-            title=add_brnch.title,
-            url=str(add_brnch.url),
+        new_filial = Filials(
+            company_id=add_filial.company_id,
+            filial_name=add_filial.filial_name,
+            filial_address=add_filial.filial_address,
         )
-        sess.add(new_branch)
+        sess.add(new_filial)
         await sess.commit()
+        await sess.refresh(new_filial)
         
-    return "Филиал успешно добавлен"
+    return new_filial
 
-
-#Показываем пользователю все его активные филиалы, деактивированные не показывает
-@router.get("/get_branches", response_model=list[ResponseBranch])
-async def get_branch(current_user: Users = Depends(get_curr_user)):
+#Показываем пользователю все его филиалы
+@router.get("/get_filials", response_model=list[FilialResponse])
+async def get_filials(current_user: Users = Depends(get_curr_user)):
     async with async_sessionlocal() as sess:
-        res = await sess.execute(select(Branches).join(Companies).where(Companies.user_id == current_user.id, Branches.is_active == True))
-        branches = res.scalars().all()
-    return branches
+        res = await sess.execute(select(Filials).join(Companies).where(Companies.users_id == current_user.id))
+        filials = res.scalars().all()
+    return filials
 
 
-#Обновляем название филиала или ссылки
-@router.put("/update_name_or_url/{id_branch}", response_model=ResponseBranch)
-async def update_name_url(id_branch: int, new_names:UpdateBranch, current_user: Users = Depends(get_curr_user)):
+#Обновляем название филиала или его адрес
+@router.patch("/update_name_or_address/{id_filial}", response_model=FilialResponse)
+async def update_name_address(id_filial: int, new_names: UpdateFilial, current_user: Users = Depends(get_curr_user)):
     async with async_sessionlocal() as sess:
-        res = await sess.execute(select(Branches).join(Companies).where(Companies.user_id == current_user.id, Branches.id == id_branch, Branches.is_active == True))
-        branch = res.scalars().first()
+        res = await sess.execute(select(Filials).join(Companies).where(Companies.users_id == current_user.id, Filials.id == id_filial))
+        filial = res.scalars().first()
         
-        if branch is None:
+        if filial is None:
             raise HTTPException(status_code=404, detail="Филиал не найден")
             
-        if new_names.title is not None:
-            branch.title = new_names.title
+        if new_names.filial_name is not None:
+            filial.filial_name = new_names.filial_name
             
-        if new_names.url is not None:
-            branch.url = str(new_names.url)
+        if new_names.filial_address is not None:
+            filial.filial_address = new_names.filial_address
+            
         await sess.commit()
-        await sess.refresh(branch)    
-        return branch
-    
+        await sess.refresh(filial)    
+        return filial
+'''    
 #Деактивируем филиал если клиент закрыл точку чтобы парсер его не отслеживал
 @router.delete("/deactivate_branch/{id_branch}", response_model=str)
 async def deactivate_branch(id_branch: int, current_user: Users = Depends(get_curr_user)):
