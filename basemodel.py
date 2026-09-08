@@ -31,7 +31,27 @@ class RenameCompany(BaseModel):
     company_name: str
     company_description: str
     
-  
+#Для создания филиала, физ. точка на карте
+class CreateFilial(BaseModel):
+    company_id: int
+    filial_name: str = Field(..., max_length=500)
+    filial_address: str = Field(None, max_length=500)
+
+#Для возврата данных пользователю по филиалам
+class FilialResponse(BaseModel):
+    id: int
+    company_id: int
+    filial_name: str
+    filial_address: str | None
+    created_at: datetime
+
+#Для изменения названия филиала или адреса филиала
+class UpdateFilial(BaseModel):
+    filial_name: str | None = Field(None, max_length=700)
+    filial_address: str | None = Field(None, max_length=700)
+    
+      
+    
 
 
 class Token(BaseModel):
