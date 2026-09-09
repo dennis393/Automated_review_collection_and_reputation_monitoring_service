@@ -1,8 +1,8 @@
 import secrets
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
-from basemodel import UserCreate, ResponseUser, CreateCompany, CompanyResponse, RenameCompany, CreateFilial, FilialResponse, UpdateFilial
-from orm import async_sessionlocal, Users, Companies, Filials
+from basemodel import UserCreate, ResponseUser, CreateCompany, CompanyResponse, RenameCompany, CreateFilial, FilialResponse, UpdateFilial, CreateSource, SourceResponse
+from orm import async_sessionlocal, Users, Companies, Filials, MonitoringResourses
 from secure import get_password_hash, verify_password, create_access_token, get_user, get_curr_user, auth_scheme, get_email_from_token, Token
 from fastapi.security import OAuth2PasswordRequestForm
 from config import Settings
@@ -100,7 +100,7 @@ async def rename_company(id_company: int, new_name: RenameCompany, current_user:
     
 
 #____________________________________________________________________________________________________________________
-#Роуты для таблицы branches(добавление филиалов)
+#Роуты для таблицы Filial(добавление филиалов)
 @router.post("/add_filial", response_model=FilialResponse)
 async def add_filial(add_filial: CreateFilial, current_user: Users =  Depends(get_curr_user)):
     async with async_sessionlocal() as sess:
@@ -150,38 +150,67 @@ async def update_name_address(id_filial: int, new_names: UpdateFilial, current_u
         await sess.commit()
         await sess.refresh(filial)    
         return filial
-'''    
-#Деактивируем филиал если клиент закрыл точку чтобы парсер его не отслеживал
-@router.delete("/deactivate_branch/{id_branch}", response_model=str)
-async def deactivate_branch(id_branch: int, current_user: Users = Depends(get_curr_user)):
-    async with async_sessionlocal() as sess:
-        res = await sess.execute(select(Branches).join(Companies).where(Companies.user_id == current_user.id, Branches.id == id_branch))
-        branch = res.scalars().first()
-        
-        if branch is None:
-            raise HTTPException(status_code=404, detail="Филиал не найден")
-        if not branch.is_active: 
-            raise HTTPException(status_code=400, detail="Филиал уже деактивирован")
-        
-        branch.is_active = False
-        await sess.commit()
-        return "Филиал деактивирован"
     
-#________________________________________________________________________________________________________
-#Роуты для таблицы Отзывы
-#Функция для возврата отзывов, сделал Limit и offset для ограничения высалки отзывов
-@router.get("/get_review", response_model=list[ResponseReview])
-async def get_review(curr_user: Users = Depends(get_curr_user), limit: int = 30, offset: int = 0):
+#Удаляем филиал если клиент закрыл точку чтобы парсер его не отслеживал
+@router.delete("/delete_filial/{id_filial}", response_model=str)
+async def delete_filial(id_filial: int, current_user: Users = Depends(get_curr_user)):
     async with async_sessionlocal() as sess:
-        res = await sess.execute(select(Reviews)
-        .join(Branches, Reviews.branch_id == Branches.id)
-        .join(Companies, Branches.company_id == Companies.id)
-        .where(Companies.user_id == curr_user.id).order_by(Reviews.pub_date.desc())
-        .limit(limit)
-        .offset(offset))
-        rev = res.scalars().all()
-        return rev
+        res = await sess.execute(select(Filials).join(Companies).where(Companies.users_id == current_user.id, Filials.id == id_filial))
+        filial = res.scalars().first()
+        
+        if filial is None:
+            raise HTTPException(status_code=404, detail="Филиал не найден")
+        
+        await sess.delete(filial)
+        await sess.commit()
+        return "Филиал удален"
+     
+#________________________________________________________________________________________________________
+#Роуты для таблицы MonitoringResourses
+#Функция для добавления ссылки к филиалу, и определения что это "Физ точка на карте или маркетплейс"
+MAP_PLATFORMS = {"yandex", "2GIS", "google_maps"}
+@router.post("/sources", response_model=SourceResponse)
+async def create_source(new_source: CreateSource, curr_user: Users = Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(
+            select(Filials).join(Companies).where(
+                Companies.users_id == curr_user.id,
+                Filials.id == new_source.filial_id
+            )
+        )
+        filial = res.scalars().first()
 
+        if filial is None:
+            raise HTTPException(status_code=404, detail="Филиал не найден")
+
+        platform_type = "map" if new_source.platform in MAP_PLATFORMS else "marketplace"
+
+        if new_source.platform in MAP_PLATFORMS and not new_source.url:
+            raise HTTPException(status_code=400, detail="Для карт нужна ссылка")
+
+        if new_source.platform not in MAP_PLATFORMS and not new_source.marketplace_shop_id_only:
+            raise HTTPException(status_code=400, detail="Для маркетплейсов нужен ID магазина")
+
+        source_db = MonitoringResourses(
+            filial_id=new_source.filial_id,
+            platform=new_source.platform,
+            platform_type=platform_type,
+            url=str(new_source.url) if new_source.url else None,
+            marketplace_shop_id_only=new_source.marketplace_shop_id_only,
+        )
+
+        sess.add(source_db)
+        await sess.commit()
+        await sess.refresh(source_db)
+        return source_db
+#показат ь пользователю активные ссылки его компаании        
+@router.get("/get_sourses/{filial_id}", responce_model=list[SourseResponse])
+async def get_sourses(filial_id: int, curr_user: Users = Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(select(MonitoringResourses).join(Filials).join(Companies).where(Companies.users_id == curr_user.id, MonitoringResourses.filial_id == filial_id))       
+        sourses = res.scalars().all()
+        return sourses
+'''
 #Роут для редактирования ответа ИИ
 @router.put("/update_ai_answer/{id_review}",response_model=ResponseReview)
 async def update_ai_response(id_review: int, update_data: UpdateReview, curr_user: Users = Depends(get_curr_user)):
