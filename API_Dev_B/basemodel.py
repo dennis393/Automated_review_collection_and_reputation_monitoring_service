@@ -26,7 +26,8 @@ class CompanyResponse(BaseModel):
     company_name: str
     company_description: str
     created_at: datetime
-    
+
+#Для изменения компании названия или описания    
 class RenameCompany(BaseModel):
     company_name: str
     company_description: str
@@ -49,7 +50,24 @@ class FilialResponse(BaseModel):
 class UpdateFilial(BaseModel):
     filial_name: str | None = Field(None, max_length=700)
     filial_address: str | None = Field(None, max_length=700)
-    
+
+#Для уточнения платформы(физ точка или маркетплейс)
+class CreateSource(BaseModel):
+    filial_id: int
+    platform: Literal["yandex", "2GIS", "google_maps", "wildberries", "ozon", "yandex_market", "uzum"]
+    url: HttpUrl | None = None
+    marketplace_shop_id_only: str | None = None  
+
+#Для вывода пользователю информации о зарегистрированном мониторинге    
+class SourceResponse(BaseModel):
+    id: int
+    filial_id: int
+    platform: str
+    platform_type: str
+    url: str | None
+    marketplace_shop_id_only: str | None
+    is_active: bool
+    last_checked_at: datetime | None
       
     
 
