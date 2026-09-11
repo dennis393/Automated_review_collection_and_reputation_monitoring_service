@@ -59,7 +59,7 @@ class CreateSource(BaseModel):
     marketplace_shop_id_only: str | None = None  
 
 #Для вывода пользователю информации о зарегистрированном мониторинге    
-class SourceResponse(BaseModel):
+class SourseResponse(BaseModel):
     id: int
     filial_id: int
     platform: str
@@ -68,10 +68,31 @@ class SourceResponse(BaseModel):
     marketplace_shop_id_only: str | None
     is_active: bool
     last_checked_at: datetime | None
+
+#Для изменения статуса или ссылки  
+class UpdateSourse(BaseModel):
+    url: HttpUrl | None = None
+    is_active: bool | None = None  
       
+#Для создания данных о маркетплейсе
+class CreateCredential(BaseModel):
+    company_id: int
+    platform: Literal["wildberries", "ozon", "yandex_market", "uzum"]
+    token: str                          # токен от продавца
+    client_id: str | None = None        # для Ozon
+    campaign_id: str | None = None      # для Yandex Market, идентификатор компании
+    business_id: str | None = None      # для Yandex Market
+    shop_id: str | None = None          # для Uzum
+
+#Для вывода пользователю данных о маркетплейсах и платформе
+class CredentialResponse(BaseModel):
+    id: int
+    company_id: int
+    platform: str
+    is_active: bool
+    created_at: datetime   
     
-
-
+ 
 class Token(BaseModel):
     access_token: str
     token_type: str
