@@ -1,9 +1,12 @@
 import secrets
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
-from basemodel import UserCreate, ResponseUser, CreateCompany, CompanyResponse, RenameCompany, CreateFilial, FilialResponse, UpdateFilial, CreateSource, SourceResponse
-from orm import async_sessionlocal, Users, Companies, Filials, MonitoringResourses
-from secure import get_password_hash, verify_password, create_access_token, get_user, get_curr_user, auth_scheme, get_email_from_token, Token
+from basemodel import (UserCreate, ResponseUser, CreateCompany, CompanyResponse, 
+                        RenameCompany, CreateFilial, FilialResponse, UpdateFilial, CreateSource, SourseResponse, UpdateSourse, CreateCredential, CredentialResponse,)
+
+
+from orm import async_sessionlocal, Users, Companies, Filials, MonitoringResourses, PlatformData
+from secure import get_password_hash, verify_password, create_access_token, get_user, get_curr_user, auth_scheme, get_email_from_token, Token, encrypt_token, decrypt_token
 from fastapi.security import OAuth2PasswordRequestForm
 from config import Settings
 from fastapi import Depends
@@ -169,7 +172,7 @@ async def delete_filial(id_filial: int, current_user: Users = Depends(get_curr_u
 #Роуты для таблицы MonitoringResourses
 #Функция для добавления ссылки к филиалу, и определения что это "Физ точка на карте или маркетплейс"
 MAP_PLATFORMS = {"yandex", "2GIS", "google_maps"}
-@router.post("/sources", response_model=SourceResponse)
+@router.post("/sources", response_model=SourseResponse)
 async def create_source(new_source: CreateSource, curr_user: Users = Depends(get_curr_user)):
     async with async_sessionlocal() as sess:
         res = await sess.execute(
@@ -203,33 +206,86 @@ async def create_source(new_source: CreateSource, curr_user: Users = Depends(get
         await sess.commit()
         await sess.refresh(source_db)
         return source_db
-#показат ь пользователю активные ссылки его компаании        
-@router.get("/get_sourses/{filial_id}", responce_model=list[SourseResponse])
+#показать пользователю активные ссылки его компаании        
+@router.get("/get_sourses/{filial_id}", response_model=list[SourseResponse])
 async def get_sourses(filial_id: int, curr_user: Users = Depends(get_curr_user)):
     async with async_sessionlocal() as sess:
         res = await sess.execute(select(MonitoringResourses).join(Filials).join(Companies).where(Companies.users_id == curr_user.id, MonitoringResourses.filial_id == filial_id))       
         sourses = res.scalars().all()
         return sourses
-'''
-#Роут для редактирования ответа ИИ
-@router.put("/update_ai_answer/{id_review}",response_model=ResponseReview)
-async def update_ai_response(id_review: int, update_data: UpdateReview, curr_user: Users = Depends(get_curr_user)):
+
+#Обновление URL или is_active(Активный ли филиал или нет, sourse -> Источник)
+@router.patch("/update_url_or_active_filial/{id_sourse}", response_model=SourseResponse)
+async def update_url_or_active(id_sourse: int, new_data: UpdateSourse, curr_user: Users = Depends(get_curr_user)):
     async with async_sessionlocal() as sess:
-        res = await sess.execute(select(Reviews).join(Branches, Reviews.branch_id == Branches.id).join(Companies, Branches.company_id == Companies.id).where(Companies.user_id == curr_user.id, Reviews.id == id_review))
-        rev = res.scalars().first()
+        res = await sess.execute(select(MonitoringResourses).join(Filials).join(Companies).where(Companies.users_id == curr_user.id, MonitoringResourses.id == id_sourse))
+        sourse = res.scalars().first()
         
-        if rev is None:
-            raise HTTPException(status_code=404, detail="Отзыв не найден")
+        if not sourse:
+            raise HTTPException(status_code=404, detail="Источник не найден")
         
-        rev.ai_draft = update_data.ai_draft
-        
+        if new_data.url is not None:
+            sourse.url = str(new_data.url)
+
+        if new_data.is_active is not None:
+            sourse.is_active = new_data.is_active
+            
         await sess.commit()
-        await sess.refresh(rev)  
-        return rev  
-'''
+        await sess.refresh(sourse)
+        return sourse
+        
+#Для удаления источника
+@router.delete("/delete_sourse/{id_sourse}", response_model=str)
+async def delete_sourse(id_sourse: int, curr_user: Users = Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(select(MonitoringResourses).join(Filials).join(Companies).where(Companies.users_id == curr_user.id, MonitoringResourses.id == id_sourse))
+        sourse = res.scalars().first()
+        
+        if not sourse:
+            raise HTTPException(status_code=404, detail="Источник не найден")
+        
+        await sess.delete(sourse)
+        await sess.commit()
+        return "Источник отслеживания удален"
+               
+#_______________________________________________________________________________________________
+#Для PlatformData роуты
+#Создаем данные о маркетплейсе
+@router.post("/create_credential", response_model=CredentialResponse)
+async def create_credential(new_cred: CreateCredential, curr_user: Users = Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(
+        select(Companies).where(Companies.id == new_cred.company_id, Companies.users_id == curr_user.id))
+    
+        company = res.scalars().first()
 
+        if not company:
+            raise HTTPException(status_code=404, detail="Компания не найдена")
 
+        credential_db = PlatformData(
+        company_id=new_cred.company_id,
+        platform=new_cred.platform,
+        seller_token_from_marketplaces=encrypt_token(new_cred.token),
+        extra_data_marketplaces={
+        "client_id": new_cred.client_id,
+        "campaign_id": new_cred.campaign_id,
+        "business_id": new_cred.business_id,
+        "shop_id": new_cred.shop_id,},
+        is_active=True)
 
+        sess.add(credential_db)
+        await sess.commit()
+        await sess.refresh(credential_db)
+        return credential_db
+
+#Возвращаем список платформ пользователя
+@router.get("/get_credential", response_model=list[CredentialResponse])
+async def get_credential(curr_user: Users = Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(select(PlatformData).join(Companies).where(PlatformData.company_id == Companies.id, Companies.users_id == curr_user.id))
+        creds = res.scalars().all()
+        
+        return creds
 
             
  
