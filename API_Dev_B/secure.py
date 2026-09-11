@@ -1,3 +1,4 @@
+from cryptography.fernet import Fernet #Для хранния токенов продавцов маркетплейсов
 
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Annotated
@@ -14,6 +15,7 @@ from sqlalchemy import select
 
 password_hash = PasswordHash.recommended()
 
+ENCRYPTION_TOKEN_FOR_MARKEYPLACES = os.getenv("ENCRYPTION_KEY")
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 LIVE_TOKEN_MINUTES = int(os.getenv("LIVE_MINUTES_TOKEN"))
@@ -82,4 +84,13 @@ async def get_curr_user(token: Annotated[str, Depends(auth_scheme )]):
     if user is None:
         raise credentials_exception
     return user
+
+#Получаем и декодируем токен для маркетплейсов
+def encrypt_token(token: str):
+    fernet = Fernet(os.getenv("ENCRYPTION_KEY"))
+    return fernet.encrypt(token.encode()).decode()
+
+def decrypt_token(encrypted_token: str):
+    fernet = Fernet(os.getenv("ENCRYPTION_KEY"))
+    return fernet.decrypt(encrypted_token.encode()).decode()
 
