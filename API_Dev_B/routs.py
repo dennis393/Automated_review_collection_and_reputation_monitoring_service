@@ -2,14 +2,15 @@ import secrets
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 from basemodel import (UserCreate, ResponseUser, CreateCompany, CompanyResponse, 
-                        RenameCompany, CreateFilial, FilialResponse, UpdateFilial, CreateSource, SourseResponse, UpdateSourse, CreateCredential, CredentialResponse,)
+        RenameCompany, CreateFilial, FilialResponse, UpdateFilial, CreateSource, SourseResponse, UpdateSourse, CreateCredential, CredentialResponse, UpdateCredential, ReviewResponse, UpdateAIDraft)
 
 
-from orm import async_sessionlocal, Users, Companies, Filials, MonitoringResourses, PlatformData
+from orm import async_sessionlocal, Users, Companies, Filials, MonitoringResourses, PlatformData, Reviews, AiDrafts
 from secure import get_password_hash, verify_password, create_access_token, get_user, get_curr_user, auth_scheme, get_email_from_token, Token, encrypt_token, decrypt_token
 from fastapi.security import OAuth2PasswordRequestForm
 from config import Settings
 from fastapi import Depends
+from sqlalchemy.orm import selectinload #Для подгрузки данных
 
 
 router = APIRouter()
@@ -286,6 +287,85 @@ async def get_credential(curr_user: Users = Depends(get_curr_user)):
         creds = res.scalars().all()
         
         return creds
+
+#обновляем и перешифровываем токен
+@router.patch("/update_token_marketpalces/{id_marketplaces}", response_model=str)
+async def update_token_marketplaces(id_marketplaces: int, new_token: UpdateCredential, curr_user: Users = Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        id_market = await sess.execute(select(PlatformData).join(Companies).where(PlatformData.company_id == Companies.id, PlatformData.id == id_marketplaces))
+        res = id_market.scalars().first()
+        
+        if not res:
+            raise HTTPException(status_code=404, detail="Маркетплейс не найден")
+        
+        res.seller_token_from_marketplaces = encrypt_token(new_token.token)
+            
+        await sess.commit()
+        await sess.refresh(res)
+        return "Токен маркетплейса успешно обновлен"
+    
+#Отключить маркетплейс
+@router.delete("/disconnect_marketplace/{id_marketplace}", response_model=str)
+async def disconnect_marketplace(id_marketplace: int, curr_user: Users = Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        id_market = await sess.execute(select(PlatformData).join(Companies).where(PlatformData.company_id == Companies.id, PlatformData.id == id_marketplace, Companies.users_id == curr_user.id))
+        res = id_market.scalars().first()
+        
+        if not res:
+            raise HTTPException(status_code=404, detail="Маркетплейс не найден")
+        
+        res.is_active = False
+        
+        await sess.commit()
+        return "Маркетплейс отключен успешно"
+#____________________________________________________________________________________________________________________________________
+#Роуты для таблицы Rewiews (Отзывы)
+#Возвращаем список отзывов с черновиками
+@router.get("/get_reviews_with_draft", response_model=list[ReviewResponse])
+async def get_reviews_with_draft(curr_user: Users = Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(select(Reviews).options(selectinload(Reviews.draft)).join(MonitoringResourses).join(Filials).join(Companies).where(Companies.users_id == curr_user.id))
+        rew = res.scalars().all()
+        return rew
+        
+@router.get("/get_review_id/{id_rev}", response_model=ReviewResponse)
+async def get_review_id(id_rew: int, curr_user: Users = Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(select(Reviews).options(selectinload(Reviews.draft)).join(MonitoringResourses).join(Filials).join(Companies).where(Reviews.id == id_rew, Companies.users_id == curr_user.id))
+        review = res.scalars().first()
+
+        if not review:
+            raise HTTPException(status_code=404, detail="Отзыв не найден")
+
+        return review
+
+#____________________________________________________________________________________________
+#Для AI draft редактирования ответа ии
+@router.patch("/update_ai_draft/{draft_id}", response_model=DraftResponse)
+async def update_ai_draft(draft_id: int, new_data: UpdateAIDraft, curr_user: Users = Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(select(AiDrafts).join(Reviews).join(MonitoringResourses).join(Filials).join(Companies).where(Companies.users_id == curr_user.id, AiDrafts.id == draft_id))
+        draft = res.scalars().first()
+    
+        if not draft:
+            raise HTTPException(status_code=404, detail="Черновой вариант отзыва отсутствует")
+
+        if new_data.edited_text is not None:
+            draft.edited_text = new_data.edited_text
+
+        if new_data.status is not None:
+            draft.status = new_data.status
+
+        await sess.commit()
+        await sess.refresh(draft)
+        return draft
+     
+        
+        
+            
+        
+        
+                
 
             
  
