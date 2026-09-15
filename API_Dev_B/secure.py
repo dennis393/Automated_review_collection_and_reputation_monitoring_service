@@ -1,4 +1,4 @@
-from cryptography.fernet import Fernet #Для хранния токенов продавцов маркетплейсов
+from cryptography.fernet import Fernet #Для кодирования токенов продавцов маркетплейсов
 
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Annotated
@@ -15,10 +15,10 @@ from sqlalchemy import select
 
 password_hash = PasswordHash.recommended()
 
-ENCRYPTION_TOKEN_FOR_MARKEYPLACES = os.getenv("ENCRYPTION_KEY")
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM")
-LIVE_TOKEN_MINUTES = int(os.getenv("LIVE_MINUTES_TOKEN"))
+ENCRYPTION_TOKEN_FOR_MARKETPLACES = settings.ENCRYPTION_KEY
+SECRET_KEY = settings.SECRET_KEY
+ALGORITHM = settings.ALGORITHM
+LIVE_TOKEN_MINUTES = settings.LIVE_MINUTES_TOKEN
 
 auth_scheme = OAuth2PasswordBearer(tokenUrl="token", description="Сюда вводим Email")
 
