@@ -22,8 +22,8 @@ async def main():
 
     print("Starting bot...")
     try:
-        await dp.start_polling(bot)
-        polling_new_drafts(bot)      
+        await asyncio.gather(dp.start_polling(bot), #Одновременный запуск
+        polling_new_drafts(bot))      
     finally:
         print("Bot stopped")
 
@@ -156,13 +156,17 @@ async def polling_new_drafts(bot: Bot):
         async with async_sessionlocal() as sess:
             # Ищем черновики которые ещё не отправили
             res = await sess.execute(
-    select(AiDrafts)
-    .options(
-        selectinload(AiDrafts.review)
-        .selectinload(Reviews.source)
-        .selectinload(MonitoringResourses.filial)
-        .selectinload(Filials.company)
-        .selectinload(Companies.user)
+            select(AiDrafts)
+            .options(
+            selectinload(AiDrafts.review).options(
+            selectinload(Reviews.source).options(
+                selectinload(MonitoringResourses.filial).options(
+                    selectinload(Filials.company).options(
+                        selectinload(Companies.user)
+                    )
+                )
+            )
+        )
     )
     .join(Reviews)
     .join(MonitoringResourses)
@@ -173,9 +177,9 @@ async def polling_new_drafts(bot: Bot):
         AiDrafts.status == "pending",
         Reviews.is_notified == False
     )
-) 
+)
             drafts = res.scalars().all()
-            
+            print(f"Найдено черновиков: {len(drafts)}")
             for draft in drafts:
                 review = draft.review
                 company = review.source.filial.company
@@ -191,7 +195,7 @@ async def polling_new_drafts(bot: Bot):
                 sent = await bot.send_message(
                     chat_id=user.id_telegram_chat,
                     text=text,
-                    reply_markup=draft_keyboard(draft.id)
+                    reply_markup=callback_inline_keyboard(draft.id)
                 )
 
                 # Сохраняем tg_message_id
