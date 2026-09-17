@@ -2,7 +2,7 @@ import secrets
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 from basemodel import (UserCreate, ResponseUser, CreateCompany, CompanyResponse, 
-        RenameCompany, CreateFilial, FilialResponse, UpdateFilial, CreateSource, SourseResponse, UpdateSourse, CreateCredential, CredentialResponse, UpdateCredential, ReviewResponse, UpdateAIDraft)
+        RenameCompany, CreateFilial, FilialResponse, UpdateFilial, CreateSource, SourseResponse, UpdateSourse, CreateCredential, CredentialResponse, UpdateCredential, ReviewResponse, UpdateAIDraft, DraftResponse)
 
 
 from orm import async_sessionlocal, Users, Companies, Filials, MonitoringResourses, PlatformData, Reviews, AiDrafts
@@ -359,6 +359,15 @@ async def update_ai_draft(draft_id: int, new_data: UpdateAIDraft, curr_user: Use
         await sess.commit()
         await sess.refresh(draft)
         return draft
+    
+    
+#______________________________________________________________________________________________________________
+#Роуты для ТГ бота
+@router.get("/telegram/token")
+async def get_telegram_token(curr_user: Users = Depends(get_curr_user)):
+    if not curr_user.telegram_token:
+        raise HTTPException(status_code=400, detail="Telegram уже привязан")
+    return {"telegram_token": curr_user.telegram_token}
      
         
         
