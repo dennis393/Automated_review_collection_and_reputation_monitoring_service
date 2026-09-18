@@ -10,7 +10,28 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.orm import selectinload
+
+
+
 dp = Dispatcher()
+
+Translate_buttons = {
+    "ru": {
+        "send": "Отправить",
+        "approve": "Одобрить",
+        "edit": "Редактировать"
+    },
+    "uz": {
+        "send": "Yuborish",
+        "approve": "Tasdiqlash",
+        "edit": "Tahrirlash"
+    }
+}
+
+def get_text(key, lang="ru"):
+    return Translate_buttons.get(lang, Translate_buttons["ru"]).get(key, key)
+
+
 
 #Основная функция для запуска бота
 async def main():
@@ -48,22 +69,58 @@ async def start(message: Message):
         
         await sess.commit()
         
-        await message.answer("Аккаунт успешно привязан")
+    builder = InlineKeyboardBuilder()
+    builder.add(
+        types.InlineKeyboardButton(text="Русский", callback_data="start_lang_ru"),
+        types.InlineKeyboardButton(text="O'zbekcha", callback_data="start_lang_uz"))
 
-
-def callback_inline_keyboard(draft_id: int):
+    await message.answer(
+        "Выберите язык интерфейса / Bot tilini tanlang:", 
+        reply_markup=builder.as_markup())
+    
+# Обработка выбора языка при старте
+@dp.callback_query(lambda c: c.data.startswith("start_lang_"))
+async def start_language_callback(callback: CallbackQuery):
+    # Извлекаем язык из callback_data
+    chosen_lang = callback.data.split("_")[2]
+    
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(
+            select(Users).where(Users.id_telegram_chat == callback.from_user.id)
+        )
+        user = res.scalars().first()
+        
+        if not user:
+            await callback.answer("Пользователь не найден")
+            return
+        
+        # Сохраняем выбранный язык в базу данных
+        user.language_code = chosen_lang
+        await sess.commit()
+        
+    # Удаляем сообщение с кнопками выбора языка
+    await callback.message.delete()
+    
+    # Отправляем приветствие на выбранном языке
+    if chosen_lang == "uz":
+        await callback.message.answer("Hisob muvaffaqiyatli bog‘landi")
+    else:
+        await callback.message.answer("Аккаунт успешно привязан")
+    
+    await callback.answer()
+    
+def callback_inline_keyboard(draft_id: int, lang: str = "ru"):
     builder = InlineKeyboardBuilder()
     builder.add(types.InlineKeyboardButton(
-    text="Отправить",
+    text=get_text("send", lang),
     callback_data=f"send_{draft_id}"
     ), 
     types.InlineKeyboardButton(
-        text = "Одобрить",
-        callback_data=f"approve_{draft_id}"
-        
+        text=get_text("approve", lang),
+        callback_data=f"approve_{draft_id}"   
     ),
     types.InlineKeyboardButton(
-        text = "Редактировать",
+        text=get_text("edit", lang),
         callback_data=f"edit_{draft_id}"))
     return builder.as_markup()
 
@@ -179,23 +236,25 @@ async def polling_new_drafts(bot: Bot):
     )
 )
             drafts = res.scalars().all()
-            print(f"Найдено черновиков: {len(drafts)}")
             for draft in drafts:
                 review = draft.review
                 company = review.source.filial.company
                 user = company.user
                 
+                user_lang = getattr(user, 'language_code', 'ru') or 'ru'    
                 # Формируем текст сообщения
                 text = (
                     f"Рейтинг: {review.rating}/5\n"
                     f"Автор: {review.author_name}\n"
                     f"Отзыв: {review.text_review}\n\n"
                     f"Черновик ответа:\n{draft.original_text}")
+                
+                
                 # Отправляем в Telegram
                 sent = await bot.send_message(
                     chat_id=user.id_telegram_chat,
                     text=text,
-                    reply_markup=callback_inline_keyboard(draft.id)
+                    reply_markup=callback_inline_keyboard(draft.id, lang=user_lang)
                 )
 
                 # Сохраняем tg_message_id
@@ -205,9 +264,20 @@ async def polling_new_drafts(bot: Bot):
                 review.is_notified = True
                 await sess.commit()
 
-        # Ждём 30 секунд и повторяем
-        await asyncio.sleep(30)
-
+            # Ждём 30 секунд и повторяем
+            await asyncio.sleep(30)
+        
+#Клавиатура для теста
+@dp.message(Command("test_keyboard"))
+async def test_keyboard(message: Message):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(select(Users).where(Users.id_telegram_chat == message.from_user.id))
+        user = res.scalars().first()
+        lang = user.language_code if user else "ru"
+    await message.answer(
+        "Тест кнопок",
+        reply_markup=callback_inline_keyboard(1, lang=lang)
+    )
    
 if __name__ == "__main__":
     asyncio.run(main())
