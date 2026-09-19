@@ -359,6 +359,31 @@ async def update_ai_draft(draft_id: int, new_data: UpdateAIDraft, curr_user: Use
         await sess.commit()
         await sess.refresh(draft)
         return draft
+    
+    
+#______________________________________________________________________________________________________________
+#Роуты для ТГ бота
+@router.get("/telegram/token")
+async def get_telegram_token(curr_user: Users = Depends(get_curr_user)):
+    if not curr_user.telegram_token:
+        raise HTTPException(status_code=400, detail="Telegram уже привязан")
+    return {"telegram_token": curr_user.telegram_token}
+
+
+#Отвязка телеграм бота
+@router.delete("/telegram/unlink/{chat_id}", response_model=str)
+async def telegram_unlink(chat_id: int, curr_user: Users = Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(select(Users).where(Users.id == curr_user.id, Users.id_telegram_chat == chat_id))
+        user = res.scalars().first()
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="Пользователь не найден или он отвязал чат")
+        
+        user.id_telegram_chat = None
+        await sess.commit()
+        return "Telegram отвязан"    
+    
      
         
         

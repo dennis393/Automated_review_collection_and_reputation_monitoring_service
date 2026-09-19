@@ -52,6 +52,7 @@ class Users(Base):
     telegram_token: Mapped[Optional[str]] = mapped_column(String(64), unique=True, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    language_code: Mapped[str] = mapped_column(String(10), default="ru")
     companies: Mapped[list["Companies"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     
 #Таблица companies(Компании)         
@@ -118,7 +119,7 @@ class Reviews(Base):
     product_name: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     reviewed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    is_notified: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_notified: Mapped[bool] = mapped_column(Boolean, default=False) #Уведомление
     source: Mapped["MonitoringResourses"] = relationship(back_populates="reviews")
     draft: Mapped[Optional["AiDrafts"]] = relationship(back_populates="review", cascade="all, delete-orphan")
     __table_args__ = (UniqueConstraint("resource_id", "id_platform_review"),) 
