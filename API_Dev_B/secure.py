@@ -3,7 +3,7 @@ from cryptography.fernet import Fernet #Для кодирования токен
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Annotated
 from fastapi import Depends, HTTPException, status
-from config import Settings
+from config import settings
 from pwdlib import PasswordHash
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt

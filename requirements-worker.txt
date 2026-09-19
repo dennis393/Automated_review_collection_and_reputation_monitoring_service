@@ -1,0 +1,9 @@
+aiohttp
+celery
+redis
+sqlalchemy
+asyncpg
+python-dotenv
+openai
+anthropic
+cryptography

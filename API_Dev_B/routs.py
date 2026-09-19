@@ -2,7 +2,7 @@ import secrets
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 from basemodel import (UserCreate, ResponseUser, CreateCompany, CompanyResponse, 
-        RenameCompany, CreateFilial, FilialResponse, UpdateFilial, CreateSource, SourseResponse, UpdateSourse, CreateCredential, CredentialResponse, UpdateCredential, ReviewResponse, UpdateAIDraft)
+        RenameCompany, CreateFilial, FilialResponse, UpdateFilial, CreateSource, SourseResponse, UpdateSourse, CreateCredential, CredentialResponse, UpdateCredential, ReviewResponse, UpdateAIDraft, DraftResponse)
 
 
 from orm import async_sessionlocal, Users, Companies, Filials, MonitoringResourses, PlatformData, Reviews, AiDrafts

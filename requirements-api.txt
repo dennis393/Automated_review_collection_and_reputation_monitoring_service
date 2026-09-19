@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+sqlalchemy
+asyncpg
+alembic
+python-jose
+passlib
+bcrypt
+python-dotenv
+aiogram
+cryptography
+pydantic[email]
+pydantic-settings
+pwdlib[argon2]
+PyJWT
+python-multipart
