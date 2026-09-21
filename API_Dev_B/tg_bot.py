@@ -19,12 +19,20 @@ Translate_buttons = {
     "ru": {
         "send": "Отправить",
         "approve": "Одобрить",
-        "edit": "Редактировать"
+        "edit": "Редактировать",
+        
+        "style_formal": "Официальный",
+        "style_casual": "Неофициальный",
+        "style_neutral": "Нейтральный"
     },
     "uz": {
         "send": "Yuborish",
         "approve": "Tasdiqlash",
-        "edit": "Tahrirlash"
+        "edit": "Tahrirlash",
+        
+        "style_formal": "Rasmiy",
+        "style_casual": "Norasmiy",
+        "style_neutral": "Neytral"
     }
 }
 
@@ -108,6 +116,63 @@ async def start_language_callback(callback: CallbackQuery):
         await callback.message.answer("Аккаунт успешно привязан")
     
     await callback.answer()
+
+#Кнопки для выбора стиля ответа ИИ
+def button_for_ai_style(lang: str):
+    builder = InlineKeyboardBuilder()
+    builder.add(
+        types.InlineKeyboardButton(text=Translate_buttons[lang]["style_formal"], callback_data=f"ai_style:{lang}:formal"),
+        types.InlineKeyboardButton(text=Translate_buttons[lang]["style_casual"], callback_data=f"ai_style:{lang}:casual"),
+        types.InlineKeyboardButton(text=Translate_buttons[lang]["style_neutral"], callback_data=f"ai_style:{lang}:neutral"))
+    return builder.as_markup()
+
+
+#Обработка кнопок стиля ответа ИИ
+@dp.message(Command("style"))
+async def show_style_menu(message: Message):
+    user_id = message.from_user.id
+    
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(select(Users).where(Users.id_telegram_chat == user_id))
+        user = res.scalars().first()
+        
+        if not user:
+            await message.answer("Пользователь не найден  / Foydalanuvchi topilmadi")
+            return
+        
+        user_lang = user.language_code if user else "ru"
+        
+        if user_lang == "uz":
+            await message.answer(
+                text="Sun'iy intellekt javob uslubini tanlang:",
+                reply_markup=button_for_ai_style(user_lang))
+        else:
+            await message.answer(
+                text="Выберите стиль ответов искусственного интеллекта:",
+                reply_markup=button_for_ai_style(user_lang))
+
+#Callback для кнопок выбора стиля ИИ            
+@dp.callback_query(lambda c: c.data.startswith("ai_style:"))
+async def save_ai_style(callback: CallbackQuery):
+    _, lang, style = callback.data.split(":")
+    
+    async with async_sessionlocal() as sess:
+        res = await sess.execute(
+            select(Users).where(Users.id_telegram_chat == callback.from_user.id))
+        user = res.scalars().first()
+        
+        if not user:
+            await callback.answer("Пользователь не найден / Foydalanuvchi topilmadi")
+            return
+        
+        user.ai_style = style
+        await sess.commit()
+        
+    await callback.answer("Стиль сохранён!" if lang == "ru" else "Uslub saqlandi!")
+    await callback.message.delete()        
+            
+    
+        
     
 def callback_inline_keyboard(draft_id: int, lang: str = "ru"):
     builder = InlineKeyboardBuilder()
