@@ -53,6 +53,7 @@ class Users(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     language_code: Mapped[str] = mapped_column(String(10), default="ru")
+    ai_style: Mapped[str] = mapped_column(String(30), default="neutral")
     companies: Mapped[list["Companies"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     
 #Таблица companies(Компании)         
