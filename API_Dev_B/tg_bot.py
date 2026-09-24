@@ -10,7 +10,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.orm import selectinload
-
+from LLM import generate_draft
 
 
 dp = Dispatcher()
@@ -69,7 +69,7 @@ async def start(message: Message):
         user = res.scalars().first()
         
         if not user:
-            await message.answer("Неверный токен")
+            await message.answer("Неверный токен / Noto'g'ri token")
             return
         
         user.id_telegram_chat = message.from_user.id
@@ -99,7 +99,7 @@ async def start_language_callback(callback: CallbackQuery):
         user = res.scalars().first()
         
         if not user:
-            await callback.answer("Пользователь не найден")
+            await callback.answer("Пользователь не найден / Foydalanuvchi topilmadi")
             return
         
         # Сохраняем выбранный язык в базу данных
@@ -198,13 +198,13 @@ async def approve_draft(callback: CallbackQuery):
         user = res.scalars().first()
         
         if not user:
-            await callback.answer("Пользователь не найден")
+            await callback.answer("Пользователь не найден / Foydalanuvchi topilmadi")
             return
         
         draft = await sess.execute(select(AiDrafts).join(Reviews).join(MonitoringResourses).join(Filials).join(Companies).where(AiDrafts.id == draft_id, Companies.users_id == user.id))
         draft_user_id = draft.scalars().first()
         if not draft_user_id:
-            await callback.answer("Черновик не найден")
+            await callback.answer("Черновик не найден / Qoralama topilmadi")
             return
         
         draft_user_id.status = "approved"
@@ -220,18 +220,18 @@ async def send_mes(callback: CallbackQuery):
         user = res.scalars().first()
         
         if not user:
-            await callback.answer("Пользователь не найден")
+            await callback.answer("Пользователь не найден / Foydalanuvchi topilmadi")
             return
         
         send_id = await sess.execute(select(AiDrafts).join(Reviews).join(MonitoringResourses).join(Filials).join(Companies).where(AiDrafts.id == send_id_mes, Companies.users_id == user.id))
         send_user_id = send_id.scalars().first()
         if not send_user_id:
-            await callback.answer("Нет сообщения для отправки")
+            await callback.answer("Нет сообщения для отправки / Yuborish uchun xabar yo'q")
             return
         
         send_user_id.status = "approved"
         await sess.commit()
-        await callback.answer("Сообщение отправлено!")
+        await callback.answer("Сообщение отправлено! / Xabar yuborildi!")
 
 #Для редактирования сообщения        
 class EditDraft(StatesGroup):
@@ -243,7 +243,7 @@ async def edit_draft(callback: CallbackQuery, state: FSMContext):
     draft_id = int(callback.data.split("_")[1])
     await state.set_state(EditDraft.waiting_for_text)
     await state.update_data(draft_id=draft_id)
-    await callback.message.answer("Введите новый текст ответа:")   
+    await callback.message.answer("Введите новый текст ответа: / Yangi javob matnini kiriting:")   
     
       
 #Обновляем базу если юзер ввел новый текст
@@ -256,55 +256,68 @@ async def save_edited_text(message: Message, state: FSMContext):
         user = res.scalars().first()
         
         if not user:
-            await message.answer("Пользователь не найден")
+            await message.answer("Пользователь не найден / Foydalanuvchi topilmadi")
             return
         
         send_id = await sess.execute(select(AiDrafts).join(Reviews).join(MonitoringResourses).join(Filials).join(Companies).where(AiDrafts.id == draft_id, Companies.users_id == user.id))
         draft_send_user_id = send_id.scalars().first()
         
         if not draft_send_user_id:
-            await message.answer("Черновик не найден")
+            await message.answer("Черновик не найден / Qoralama topilmadi")
             return
         
         draft_send_user_id.edited_text = message.text
         await sess.commit()
-        await message.answer("Ответ обновлён")
+        await message.answer("Ответ обновлён / Javob yangilandi")
         
     await state.clear()    
 
         
-async def polling_new_drafts(bot: Bot):
+async def polling_new_drafts(bot: Bot): #Фоновая задача
     while True:
+        print("Проверяем...")
         async with async_sessionlocal() as sess:
-            # Ищем черновики которые ещё не отправили
             res = await sess.execute(
-            select(AiDrafts)
-            .options(
-            selectinload(AiDrafts.review).options(
-            selectinload(Reviews.source).options(
-                selectinload(MonitoringResourses.filial).options(
-                    selectinload(Filials.company).options(
-                        selectinload(Companies.user)
+                select(Reviews)
+                .options(
+                    selectinload(Reviews.source).options(
+                        selectinload(MonitoringResourses.filial).options(
+                            selectinload(Filials.company).options(
+                                selectinload(Companies.user)
+                            )
+                        )
                     )
                 )
+                .join(MonitoringResourses)
+                .join(Filials)
+                .join(Companies)
+                .join(Users)
+                .where(Reviews.is_notified == False)
             )
-        )
-    )
-    .join(Reviews)
-    .join(MonitoringResourses)
-    .join(Filials)
-    .join(Companies)
-    .join(Users)
-    .where(
-        AiDrafts.status == "pending",
-        Reviews.is_notified == False
-    )
-)
-            drafts = res.scalars().all()
-            for draft in drafts:
-                review = draft.review
+            reviews = res.scalars().all()
+            print(f"Найдено: {len(reviews)}")
+            for review in reviews:
                 company = review.source.filial.company
                 user = company.user
+                
+                if not user.id_telegram_chat:
+                    print(f"⚠️ Пропуск отзыва ID {review.id}: У пользователя {user.id} (Компания: {company.company_name}) НЕ ПРИВЯЗАН Telegram-чат (id_telegram_chat равен None)!")
+                    continue # Переходим к следующему отзыву, цикл не ломается
+                
+                generated_text = await generate_draft(
+                review_text=review.text_review,
+                company_name=company.company_name,
+                company_description=company.company_description,
+                platform=review.source.platform,
+                rating=review.rating,
+                product_name=review.product_name,
+                ai_style=user.ai_style or "neutral")
+                
+                new_draft = AiDrafts(
+                review_id=review.id,
+                original_text=generated_text)
+                sess.add(new_draft)
+                await sess.flush()
                 
                 user_lang = getattr(user, 'language_code', 'ru') or 'ru'    
                 # Формируем текст сообщения
@@ -312,18 +325,18 @@ async def polling_new_drafts(bot: Bot):
                     f"Рейтинг: {review.rating}/5\n"
                     f"Автор: {review.author_name}\n"
                     f"Отзыв: {review.text_review}\n\n"
-                    f"Черновик ответа:\n{draft.original_text}")
+                    f"Черновик ответа:\n{generated_text}")
                 
                 
                 # Отправляем в Telegram
                 sent = await bot.send_message(
                     chat_id=user.id_telegram_chat,
                     text=text,
-                    reply_markup=callback_inline_keyboard(draft.id, lang=user_lang)
+                    reply_markup=callback_inline_keyboard(new_draft.id, lang=user_lang)
                 )
 
                 # Сохраняем tg_message_id
-                draft.tg_message_id = sent.message_id
+                new_draft.tg_message_id = sent.message_id
 
                 # Помечаем что уведомление отправлено
                 review.is_notified = True
