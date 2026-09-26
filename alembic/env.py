@@ -4,7 +4,9 @@ import sys
 import os
 
 #Корневая дирекитория
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT_DIR)
+sys.path.insert(0, os.path.join(ROOT_DIR, "API_Dev_B"))
 
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlalchemy import pool

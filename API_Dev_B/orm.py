@@ -45,10 +45,10 @@ name="statusForAi")
 class Users(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=True)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    id_telegram_chat: Mapped[Optional[int]] =  mapped_column(BigInteger, unique=True, nullable=True)
+    id_telegram_chat: Mapped[Optional[int]] =  mapped_column(BigInteger, unique=True, nullable=False)
     telegram_token: Mapped[Optional[str]] = mapped_column(String(64), unique=True, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

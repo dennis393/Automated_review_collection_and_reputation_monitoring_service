@@ -120,6 +120,7 @@ class ReviewResponse(BaseModel):
     created_at: datetime
     is_notified: bool 
     draft: DraftResponse | None = None   
+    
 #Для AI черновика
 class UpdateAIDraft(BaseModel):
     edited_text: str | None = None
