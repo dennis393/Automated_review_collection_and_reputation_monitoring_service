@@ -132,6 +132,20 @@ class Token(BaseModel):
     token_type: str
     
 class TokenData(BaseModel):
-    email: EmailStr | None = None
+    # было - email: EmailStr | None = None
+    user_id: int | None = None # потому что теперь и email-логин, и telegram-логин должны класть в JWT одно и то же поле
+class TelegramAuthRequest(BaseModel): # Что фронт шлет на шаге входа
+    init_data: str
 
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class RegisterOnboarding(BaseModel): #что фронт шлёт ПОСЛЕ, отдельным запросом
+    company_name: str
+    company_description: str
+    filial_name: str
+    filial_address: str | None
+    language_code: str = "ru"
 
