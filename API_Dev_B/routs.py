@@ -1,13 +1,12 @@
-import secrets
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
-from basemodel import (UserCreate, ResponseUser, CreateCompany, CompanyResponse, 
-        RenameCompany, CreateFilial, FilialResponse, UpdateFilial, CreateSource, SourseResponse, UpdateSourse, CreateCredential, CredentialResponse, UpdateCredential, ReviewResponse, UpdateAIDraft, DraftResponse)
+from basemodel import (ResponseUser, CreateCompany, CompanyResponse,
+        RenameCompany, CreateFilial, FilialResponse, UpdateFilial, CreateSource, SourseResponse, UpdateSourse, CreateCredential, CredentialResponse, UpdateCredential, ReviewResponse, UpdateAIDraft, DraftResponse,
+        TelegramAuthRequest, AuthResponse, RegisterOnboarding)
 
 
 from orm import async_sessionlocal, Users, Companies, Filials, MonitoringResourses, PlatformData, Reviews, AiDrafts
-from secure import get_password_hash, verify_password, create_access_token, get_user, get_curr_user, auth_scheme, get_email_from_token, Token, encrypt_token, decrypt_token
-from fastapi.security import OAuth2PasswordRequestForm
+from secure import create_access_token, get_user_by_id, get_curr_user, get_user_id_from_token, verify_telegram_init_data, encrypt_token
 from config import Settings
 from fastapi import Depends
 from sqlalchemy.orm import selectinload #Для подгрузки данных
@@ -15,54 +14,75 @@ from sqlalchemy.orm import selectinload #Для подгрузки данных
 
 router = APIRouter()
 
-#Создаем нового пользователя, роут принимает Pydantic модель den@gmail.com l
-@router.post("/register", response_model=ResponseUser)
-async def create_new_user(new_user: UserCreate):
-    async with async_sessionlocal() as sess:
-        result = await sess.execute(select(Users).where(Users.email == new_user.email))
-        user = result.scalars().first()
-        #Если пользователь уже зарегистрирован
-        if user:
-            raise HTTPException(
-            status_code=400,
-            detail="Пользователь уже зарегистрирован"
-            )
-        #Хэшируем пароль
-        hashed_password = get_password_hash(new_user.password)
-    
-        #Pydantic модель нельзя добавить в бд, создаем ORM объект
-        user_db = Users(full_name=new_user.full_name, email=new_user.email, password_hash=hashed_password, telegram_token=secrets.token_hex(16)) #Тут же гененрим тг токен пользователя
-    
-        #добавляем пользователя в бд
-        sess.add(user_db)
-        await sess.commit()
-        await sess.refresh(user_db)
-    
-        return user_db
-
-
-#Роутер для аутентификации
-@router.post("/token", response_model=Token)
-async def auth(user_data:  OAuth2PasswordRequestForm=Depends()):
-    user = await get_user(user_data.username)
-    if not user or not verify_password(user_data.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Неверный email или пароль")
-    
-    if not user.is_active:
-        raise HTTPException(status_code=403, detail="Аккаунт отключен")
-         
-    token = create_access_token({"sub": user.email})
-    return {"access_token": token, "token_type": "bearer"}
-
 #Роутер для получения текущего пользователя
 @router.get("/users/me", response_model=ResponseUser)
-async def get_current_user(user_email: str=Depends(get_email_from_token)): 
+async def get_current_user(user_id: int = Depends(get_user_id_from_token)):
+    user = await get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    return user
+
+
+#Роутер для входа через Telegram Mini App (initData → JWT)
+@router.post("/auth/telegram-webapp", response_model=AuthResponse)
+async def telegram_webapp_auth(payload: TelegramAuthRequest):
+    tg_user = verify_telegram_init_data(payload.init_data)
+
     async with async_sessionlocal() as sess:
-        res = await sess.execute(select(Users).where(Users.email == user_email))
+        res = await sess.execute(select(Users).where(Users.id_telegram_chat == tg_user["id_telegram_chat"]))
         user = res.scalars().first()
-        if not user:
-            raise HTTPException(status_code=404, detail="Пользователь не найден")
-        return user
+        needs_onboarding = False
+
+        if user is None:
+            user = Users(
+                id_telegram_chat=tg_user["id_telegram_chat"],
+                full_name=tg_user["full_name"],
+                language_code=tg_user["language_code"],
+                email=None,
+                password_hash=None,
+            )
+            sess.add(user)
+            await sess.commit()
+            await sess.refresh(user)
+            needs_onboarding = True
+        elif not user.is_active:
+            raise HTTPException(status_code=403, detail="Аккаунт отключен")
+        else:
+            res_company = await sess.execute(select(Companies).where(Companies.users_id == user.id))
+            needs_onboarding = res_company.scalars().first() is None
+
+    token = create_access_token({"sub": str(user.id)})
+    return {"access_token": token, "token_type": "bearer", "needs_onboarding": needs_onboarding}
+
+
+#Роутер для онбординга нового Telegram-пользователя (создание компании + первого филиала)
+@router.post("/auth/onboarding", response_model=CompanyResponse)
+async def telegram_onboarding(data: RegisterOnboarding, current_user: Users = Depends(get_curr_user)):
+    async with async_sessionlocal() as sess:
+        new_company = Companies(
+            users_id=current_user.id,
+            company_name=data.company_name,
+            company_description=data.company_description,
+        )
+        sess.add(new_company)
+        await sess.commit()
+        await sess.refresh(new_company)
+
+        new_filial = Filials(
+            company_id=new_company.id,
+            filial_name=data.filial_name,
+            filial_address=data.filial_address,
+        )
+        sess.add(new_filial)
+
+        if data.language_code:
+            user_res = await sess.execute(select(Users).where(Users.id == current_user.id))
+            user_row = user_res.scalars().first()
+            user_row.language_code = data.language_code
+
+        await sess.commit()
+        await sess.refresh(new_company)
+        return new_company
 
 #___________________________________________________________________________________________________________________
 #Внизу роуты для таблицы Companies 

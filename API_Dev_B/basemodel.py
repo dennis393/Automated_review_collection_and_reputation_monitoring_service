@@ -2,16 +2,10 @@ from pydantic import BaseModel, EmailStr, HttpUrl, Field
 from datetime import datetime
 from typing import Literal
 
-#Для создания пользователя
-class UserCreate(BaseModel):
-    email: EmailStr
-    password: str
-    full_name: str
-
 #Для вывода пользователю информации о нем
 class ResponseUser(BaseModel):
     id: int
-    email: EmailStr
+    email: EmailStr | None
     full_name: str
     created_at: datetime
 
@@ -137,9 +131,8 @@ class TokenData(BaseModel):
 class TelegramAuthRequest(BaseModel): # Что фронт шлет на шаге входа
     init_data: str
 
-class AuthResponse(BaseModel):
-    access_token: str
-    token_type: str
+class AuthResponse(Token):
+    needs_onboarding: bool
 
 
 class RegisterOnboarding(BaseModel): #что фронт шлёт ПОСЛЕ, отдельным запросом

@@ -1,34 +1,29 @@
 from cryptography.fernet import Fernet #Для кодирования токенов продавцов маркетплейсов
 
+import hmac
+import hashlib
+import json
+from urllib.parse import parse_qsl
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Annotated
 from fastapi import Depends, HTTPException, status
 from config import settings
-from pwdlib import PasswordHash
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt.exceptions import InvalidTokenError
-from basemodel import  UserCreate, Token, TokenData
+from basemodel import TokenData
 from orm import Users, async_sessionlocal
 import os
 from sqlalchemy import select
-
-password_hash = PasswordHash.recommended()
 
 ENCRYPTION_TOKEN_FOR_MARKETPLACES = settings.ENCRYPTION_KEY
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
 LIVE_TOKEN_MINUTES = settings.LIVE_MINUTES_TOKEN
+TG_BOT_TOKEN = settings.TG_BOT_TOKEN
+TELEGRAM_INIT_DATA_MAX_AGE_SECONDS = 86400
 
-auth_scheme = OAuth2PasswordBearer(tokenUrl="token", description="Сюда вводим Email")
-
-#Верификация пароля, возвращает True / False
-def verify_password(plain_password: str, hashed_password: str):
-    return password_hash.verify(plain_password, hashed_password)
-
-#Хэширование пароля для сохранения в бд
-def get_password_hash(password: str):
-    return password_hash.hash(password)
+auth_scheme = OAuth2PasswordBearer(tokenUrl="auth/telegram-webapp", auto_error=False)
 
 #Создаем токен и его время жизни
 def create_access_token(data: dict, time: Optional[timedelta] = None):
@@ -45,31 +40,65 @@ def create_access_token(data: dict, time: Optional[timedelta] = None):
 def verify_token(token: str, credentials_exception):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
+        raw_sub = payload.get("sub")
+        if raw_sub is None:
             raise credentials_exception
-        token_data = TokenData(email=email)
+        user_id = int(raw_sub)
+        token_data = TokenData(user_id=user_id)
     except InvalidTokenError:
         raise credentials_exception
     return token_data
 
-#Ищем пользователя в бд
-async def get_user(email:str):
+#Ищем пользователя в бд по id
+async def get_user_by_id(user_id):
     async with async_sessionlocal() as sess:
-        res = await sess.execute(select(Users).where(Users.email == email))
-        return res.scalars().first() 
-        
+        res = await sess.execute(select(Users).where(Users.id == user_id))
+        return res.scalars().first()
         
 #Декодируем JWT и вытаскиваем email
-def get_email_from_token(token: str=Depends(auth_scheme)):
+def get_user_id_from_token(token: str=Depends(auth_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email = payload.get("sub")
-        if not email:
+        raw_sub = payload.get("sub")
+        if raw_sub is None:
             raise HTTPException(status_code=401, detail="Невалидный токен")
-        return email
-    except InvalidTokenError as e:
+        return int(raw_sub)
+    except InvalidTokenError:
         raise HTTPException(status_code=401, detail="Невалидный токен")
+
+
+#Проверка initData из Telegram Mini App (HMAC-подпись бот-токеном)
+def verify_telegram_init_data(init_data: str) -> dict:
+    invalid_data_exception = HTTPException(status_code=401, detail="Невалидные данные Telegram")
+
+    data = dict(parse_qsl(init_data))
+    received_hash = data.pop("hash", None)
+    if not received_hash:
+        raise invalid_data_exception
+
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
+
+    secret_key = hmac.new(b"WebAppData", TG_BOT_TOKEN.encode(), hashlib.sha256).digest()
+    computed_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+
+    if not hmac.compare_digest(computed_hash, received_hash):
+        raise invalid_data_exception
+
+    auth_date = int(data.get("auth_date", 0))
+    now = datetime.now(timezone.utc).timestamp()
+    if now - auth_date > TELEGRAM_INIT_DATA_MAX_AGE_SECONDS:
+        raise HTTPException(status_code=401, detail="initData устарел")
+
+    try:
+        user_data = json.loads(data["user"])
+    except (KeyError, json.JSONDecodeError):
+        raise invalid_data_exception
+
+    return {
+        "id_telegram_chat": user_data["id"],
+        "full_name": user_data.get("first_name", "Пользователь"),
+        "language_code": user_data.get("language_code", "ru"),
+    }
 
 #Текущий пользователь
 async def get_curr_user(token: Annotated[str, Depends(auth_scheme )]):
@@ -80,7 +109,7 @@ async def get_curr_user(token: Annotated[str, Depends(auth_scheme )]):
     )
         
     token_data = verify_token(token, credentials_exception)
-    user = await get_user(token_data.email)
+    user = await get_user_by_id(token_data.user_id)
     if user is None:
         raise credentials_exception
     return user
