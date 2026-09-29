@@ -1,39 +1,56 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext";
-import ProtectedRoute from "./components/ProtectedRoute";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import Layout from "./components/Layout";
-import LoginPage from "./pages/LoginPage";
-import RegisterPage from "./pages/RegisterPage";
+import EntryStatusPage from "./pages/EntryStatusPage";
+import OnboardingPage from "./pages/OnboardingPage";
 import CompaniesPage from "./pages/CompaniesPage";
 import FilialsPage from "./pages/FilialsPage";
 import SourcesPage from "./pages/SourcesPage";
 import CredentialsPage from "./pages/CredentialsPage";
 import ReviewsPage from "./pages/ReviewsPage";
-import TelegramPage from "./pages/TelegramPage";
 import "./App.css";
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route element={<Layout />}>
+        <Route path="/" element={<Navigate to="/companies" replace />} />
+        <Route path="/companies" element={<CompaniesPage />} />
+        <Route path="/filials" element={<FilialsPage />} />
+        <Route path="/sources" element={<SourcesPage />} />
+        <Route path="/credentials" element={<CredentialsPage />} />
+        <Route path="/reviews" element={<ReviewsPage />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+// Вся навигация теперь подчинена состоянию входа через Telegram — отдельных
+// публичных роутов вроде /login больше нет, попасть в приложение можно
+// только с валидным initData
+function AuthGate() {
+  const { status } = useAuth();
+
+  switch (status) {
+    case "loading":
+      return <EntryStatusPage kind="loading" />;
+    case "outside-telegram":
+      return <EntryStatusPage kind="outside-telegram" />;
+    case "error":
+      return <EntryStatusPage kind="error" />;
+    case "needs-onboarding":
+      return <OnboardingPage />;
+    case "ready":
+      return <AppRoutes />;
+  }
+}
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-
-          <Route element={<ProtectedRoute />}>
-            <Route element={<Layout />}>
-              <Route path="/" element={<Navigate to="/companies" replace />} />
-              <Route path="/companies" element={<CompaniesPage />} />
-              <Route path="/filials" element={<FilialsPage />} />
-              <Route path="/sources" element={<SourcesPage />} />
-              <Route path="/credentials" element={<CredentialsPage />} />
-              <Route path="/reviews" element={<ReviewsPage />} />
-              <Route path="/telegram" element={<TelegramPage />} />
-            </Route>
-          </Route>
-
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <AuthGate />
       </AuthProvider>
     </BrowserRouter>
   );

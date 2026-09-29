@@ -70,8 +70,8 @@ async def telegram_onboarding(data: RegisterOnboarding, current_user: Users = De
 
         new_filial = Filials(
             company_id=new_company.id,
-            filial_name=data.filial_name,
-            filial_address=data.filial_address,
+            filial_name="Основной",
+            filial_address=None,
         )
         sess.add(new_filial)
 

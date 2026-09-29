@@ -1,56 +1,77 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { getCurrentUser, login as loginApi } from "../api/auth";
+import { authenticateWithTelegram, getCurrentUser } from "../api/auth";
 import { clearToken, getToken, setToken } from "../api/client";
+import { getInitData } from "../lib/telegram";
 import type { ResponseUser } from "../types";
+
+type AuthStatus = "loading" | "outside-telegram" | "needs-onboarding" | "ready" | "error";
 
 interface AuthContextValue {
   user: ResponseUser | null;
-  loading: boolean;
+  status: AuthStatus;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
   refreshUser: () => Promise<void>;
+  completeOnboarding: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<ResponseUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<AuthStatus>("loading");
 
   const refreshUser = useCallback(async () => {
-    if (!getToken()) {
-      setUser(null);
-      return;
-    }
-    try {
-      const me = await getCurrentUser();
-      setUser(me);
-    } catch {
-      clearToken();
-      setUser(null);
-    }
+    const me = await getCurrentUser();
+    setUser(me);
   }, []);
 
-  useEffect(() => {
-    refreshUser().finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const login = useCallback(async (username: string, password: string) => {
-    const token = await loginApi(username, password);
-    setToken(token.access_token);
+  // Второй параметр onboardingDone — чтобы после сабмита формы регистрации
+  // сразу перевести юзера на главный экран, не дожидаясь нового цикла эффекта
+  const completeOnboarding = useCallback(async () => {
     await refreshUser();
+    setStatus("ready");
   }, [refreshUser]);
 
-  const logout = useCallback(() => {
-    clearToken();
-    setUser(null);
+  useEffect(() => {
+    async function boot() {
+      const initData = getInitData();
+
+      if (!initData) {
+        // Открыли не из Telegram (например, напрямую по ссылке в браузере при отладке)
+        setStatus("outside-telegram");
+        return;
+      }
+
+      try {
+        // Токен уже мог остаться валидным с прошлой сессии — но initData
+        // Telegram выдаёт заново при каждом открытии Mini App, поэтому
+        // проще и надёжнее всегда обменивать его на свежий JWT
+        const auth = await authenticateWithTelegram(initData);
+        setToken(auth.access_token);
+        // Юзер к этому моменту уже существует в БД (создан на /auth/telegram-webapp,
+        // даже "голый", без компании) — грузим профиль сразу, он пригодится
+        // и на экране онбординга (поприветствовать по имени), и на главном
+        await refreshUser();
+        setStatus(auth.needs_onboarding ? "needs-onboarding" : "ready");
+      } catch {
+        clearToken();
+        setStatus("error");
+      }
+    }
+
+    boot();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, isAuthenticated: !!user, login, logout, refreshUser }}
+      value={{
+        user,
+        status,
+        isAuthenticated: status === "ready" && !!getToken(),
+        refreshUser,
+        completeOnboarding,
+      }}
     >
       {children}
     </AuthContext.Provider>

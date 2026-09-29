@@ -88,7 +88,7 @@ class Filials(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
     filial_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    filial_address: Mapped[str] = mapped_column(String(500))
+    filial_address: Mapped[Optional[str]] = mapped_column(String(500), nullable=True) #Может отсутствовать у продавцов только на маркетплейсах
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     company: Mapped["Companies"] = relationship(back_populates="filials")
     resourses: Mapped[list["MonitoringResourses"]] = relationship(back_populates="filial", cascade="all, delete-orphan")

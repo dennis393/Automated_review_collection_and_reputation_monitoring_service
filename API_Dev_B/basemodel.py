@@ -30,7 +30,7 @@ class RenameCompany(BaseModel):
 class CreateFilial(BaseModel):
     company_id: int
     filial_name: str = Field(..., max_length=500)
-    filial_address: str = Field(None, max_length=500)
+    filial_address: str | None = Field(None, max_length=500)
 
 #Для возврата данных пользователю по филиалам
 class FilialResponse(BaseModel):
@@ -138,7 +138,8 @@ class AuthResponse(Token):
 class RegisterOnboarding(BaseModel): #что фронт шлёт ПОСЛЕ, отдельным запросом
     company_name: str
     company_description: str
-    filial_name: str
-    filial_address: str | None
     language_code: str = "ru"
+    # Филиал "Основной" создаётся автоматически (см. /auth/onboarding) —
+    # не у всех бизнесов есть физическая точка (продавцы на маркетплейсах),
+    # реальные филиалы юзер добавляет позже во вкладке "Филиалы"
 

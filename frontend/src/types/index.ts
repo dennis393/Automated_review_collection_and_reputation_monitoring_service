@@ -1,20 +1,24 @@
 // ==== Users / Auth ====
 export interface ResponseUser {
   id: number;
-  email: string;
+  email: string | null;
   full_name: string;
   created_at: string;
-}
-
-export interface UserCreate {
-  email: string;
-  password: string;
-  full_name: string;
 }
 
 export interface Token {
   access_token: string;
   token_type: string;
+}
+
+export interface AuthResponse extends Token {
+  needs_onboarding: boolean;
+}
+
+export interface RegisterOnboarding {
+  company_name: string;
+  company_description: string;
+  language_code: "ru" | "uz";
 }
 
 // ==== Companies ====

@@ -9,7 +9,19 @@
   --color-success: #2fa96a;
   --color-text: #1c2230;
   --color-text-muted: #6b7280;
+  --color-accent-gold: #d9a441;
   --radius: 10px;
+
+  /* Алиасы под shadcn/ui-компоненты (Input и т.д.) — те же токены, другие имена */
+  --background: var(--color-bg);
+  --foreground: var(--color-text);
+  --muted-foreground: var(--color-text-muted);
+  --card: var(--color-surface);
+  --input: var(--color-border);
+  --ring: var(--color-primary);
+  --primary: var(--color-primary);
+  --primary-foreground: #ffffff;
+  --destructive: var(--color-danger);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -24,6 +36,7 @@
     --color-success: #4bc487;
     --color-text: #e8eaf0;
     --color-text-muted: #9aa1b0;
+    --color-accent-gold: #e6b655;
   }
 }
 
@@ -38,6 +51,7 @@
   --color-success: #4bc487;
   --color-text: #e8eaf0;
   --color-text-muted: #9aa1b0;
+  --color-accent-gold: #e6b655;
 }
 
 * {

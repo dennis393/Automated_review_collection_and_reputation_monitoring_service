@@ -10,7 +10,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.orm import selectinload
-from LLM import generate_draft
+from Dev_A.llm import draft_generator
 
 
 dp = Dispatcher()
@@ -58,64 +58,27 @@ async def main():
 
 @dp.message(CommandStart())
 async def start(message: Message):
-    args = message.text.split()
-    if len(args) < 2:
-        await message.answer("Введите токен: /start ваш_токен")
-        return
-    
-    token = args[1] 
     async with async_sessionlocal() as sess:
-        res = await sess.execute(select(Users).where(Users.telegram_token == token))
+        res = await sess.execute(select(Users).where(Users.id_telegram_chat == message.from_user.id))
         user = res.scalars().first()
-        
-        if not user:
-            await message.answer("Неверный токен / Noto'g'ri token")
-            return
-        
-        user.id_telegram_chat = message.from_user.id
-        user.telegram_token = None
-        
-        await sess.commit()
-        
-    builder = InlineKeyboardBuilder()
-    builder.add(
-        types.InlineKeyboardButton(text="Русский", callback_data="start_lang_ru"),
-        types.InlineKeyboardButton(text="O'zbekcha", callback_data="start_lang_uz"))
 
-    await message.answer(
-        "Выберите язык интерфейса / Bot tilini tanlang:", 
-        reply_markup=builder.as_markup())
-    
-# Обработка выбора языка при старте
-@dp.callback_query(lambda c: c.data.startswith("start_lang_"))
-async def start_language_callback(callback: CallbackQuery):
-    # Извлекаем язык из callback_data
-    chosen_lang = callback.data.split("_")[2]
-    
-    async with async_sessionlocal() as sess:
-        res = await sess.execute(
-            select(Users).where(Users.id_telegram_chat == callback.from_user.id)
-        )
-        user = res.scalars().first()
-        
-        if not user:
-            await callback.answer("Пользователь не найден / Foydalanuvchi topilmadi")
-            return
-        
-        # Сохраняем выбранный язык в базу данных
-        user.language_code = chosen_lang
-        await sess.commit()
-        
-    # Удаляем сообщение с кнопками выбора языка
-    await callback.message.delete()
-    
-    # Отправляем приветствие на выбранном языке
-    if chosen_lang == "uz":
-        await callback.message.answer("Hisob muvaffaqiyatli bog‘landi")
-    else:
-        await callback.message.answer("Аккаунт успешно привязан")
-    
-    await callback.answer()
+    lang = user.language_code if user else (message.from_user.language_code or "ru")
+    lang = "uz" if lang == "uz" else "ru"
+
+    greeting = (
+        "Salom! Mijoz sharhlarini kuzatish uchun ilovani oching:"
+        if lang == "uz"
+        else "Привет! Открой приложение, чтобы настроить мониторинг отзывов:"
+    )
+    button_text = "🚀 Ilovani ochish" if lang == "uz" else "🚀 Открыть приложение"
+
+    builder = InlineKeyboardBuilder()
+    builder.add(types.InlineKeyboardButton(
+        text=button_text,
+        web_app=types.WebAppInfo(url=settings.MINI_APP_URL),
+    ))
+
+    await message.answer(greeting, reply_markup=builder.as_markup())
 
 #Кнопки для выбора стиля ответа ИИ
 def button_for_ai_style(lang: str):

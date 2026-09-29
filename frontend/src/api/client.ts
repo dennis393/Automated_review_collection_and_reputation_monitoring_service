@@ -34,10 +34,10 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error?.response?.status === 401) {
+      // Токен протух/невалиден — сбрасываем и перезапускаем вход по свежему initData
+      // (он у Telegram всегда под рукой, отдельный экран логина не нужен)
       clearToken();
-      if (window.location.pathname !== "/login") {
-        window.location.href = "/login";
-      }
+      window.location.reload();
     }
     return Promise.reject(error);
   }
