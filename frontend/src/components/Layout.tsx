@@ -1,36 +1,30 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 
 const navItems = [
-  { to: "/companies", label: "Компании" },
-  { to: "/filials", label: "Филиалы" },
-  { to: "/sources", label: "Источники" },
-  { to: "/credentials", label: "Маркетплейсы" },
-  { to: "/reviews", label: "Отзывы" },
+  { to: "/dashboard", label: "Главная", icon: "🏠" },
+  { to: "/reviews", label: "Отзывы", icon: "💬" },
+  { to: "/filials", label: "Филиалы", icon: "📍" },
+  { to: "/credentials", label: "Маркетплейсы", icon: "🛍" },
 ];
 
 export default function Layout() {
-  const { user } = useAuth();
-
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">{user?.full_name ?? "Reviews"}</div>
-        <nav>
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) => "nav-link" + (isActive ? " active" : "")}
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
       <main className="content">
         <Outlet />
       </main>
+      <nav className="bottom-nav">
+        {navItems.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) => "bottom-nav-item" + (isActive ? " active" : "")}
+          >
+            <span className="bottom-nav-icon">{item.icon}</span>
+            {item.label}
+          </NavLink>
+        ))}
+      </nav>
     </div>
   );
 }

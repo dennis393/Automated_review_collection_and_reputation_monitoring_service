@@ -68,7 +68,7 @@ export default function ReviewsPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h1>Отзывы и AI-черновики ответов</h1>
+        <h1>Отзывы</h1>
       </div>
       <Alert message={error} />
       {loading ? (

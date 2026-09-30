@@ -1,3 +1,5 @@
+import BrandMark from "@/components/BrandMark";
+
 interface EntryStatusPageProps {
   kind: "loading" | "outside-telegram" | "error";
 }
@@ -21,12 +23,18 @@ export default function EntryStatusPage({ kind }: EntryStatusPageProps) {
   const { title, text } = COPY[kind];
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-8 text-center">
-      <div
-        className="mb-5 flex h-14 w-14 items-center justify-center rounded-full text-[26px]"
-        style={{ background: "color-mix(in srgb, var(--color-accent-gold) 18%, transparent)" }}
-      >
-        {kind === "loading" ? "⏳" : kind === "error" ? "⚠️" : "⭐"}
-      </div>
+      {kind === "outside-telegram" ? (
+        <div className="mb-5">
+          <BrandMark size={56} />
+        </div>
+      ) : (
+        <div
+          className="mb-5 flex h-14 w-14 items-center justify-center rounded-full text-[26px]"
+          style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)" }}
+        >
+          {kind === "loading" ? "⏳" : "⚠️"}
+        </div>
+      )}
       <h1 className="text-[19px] font-semibold" style={{ color: "var(--color-text)" }}>
         {title}
       </h1>

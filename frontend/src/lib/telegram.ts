@@ -45,6 +45,8 @@ interface TelegramWebApp {
   expand(): void;
   onEvent(event: string, cb: () => void): void;
   offEvent(event: string, cb: () => void): void;
+  setHeaderColor?(color: string): void;
+  setBackgroundColor?(color: string): void;
 }
 
 declare global {
@@ -68,38 +70,15 @@ export function isInsideTelegram(): boolean {
   return getInitData() !== null;
 }
 
-const THEME_VAR_MAP: Record<keyof TelegramThemeParams, string[]> = {
-  bg_color: ["--color-bg", "--background"],
-  text_color: ["--color-text", "--foreground"],
-  hint_color: ["--color-text-muted", "--muted-foreground"],
-  link_color: ["--ring"],
-  button_color: ["--color-primary", "--primary"],
-  button_text_color: ["--primary-foreground"],
-  secondary_bg_color: ["--color-surface", "--card", "--input"],
-  section_bg_color: ["--color-surface", "--card"],
-  destructive_text_color: ["--color-danger", "--destructive"],
-};
-
-// Пробрасываем цвета текущей темы Telegram (light/dark, у каждого юзера свои) в те же
-// CSS-переменные, которые уже использует остальной интерфейс — остальные страницы
-// перекрашиваются "бесплатно", без переписывания каждой из них.
-export function applyTelegramTheme() {
+// Сознательно НЕ подтягиваем цвета из Telegram.WebApp.themeParams — у бренда
+// фиксированная бело-синяя палитра (App.css), она не должна зависеть от того,
+// какая тема (тёмная/цветная) стоит в личных настройках Telegram у конкретного юзера.
+// Дёргаем только то, что не про цвет: сообщаем Telegram фон шапки/фона под свой белый.
+export function applyTelegramChrome() {
   const webApp = getWebApp();
   if (!webApp) return;
-
-  const root = document.documentElement;
-  for (const [key, cssVars] of Object.entries(THEME_VAR_MAP) as [
-    keyof TelegramThemeParams,
-    string[],
-  ][]) {
-    const value = webApp.themeParams[key];
-    if (!value) continue;
-    for (const cssVar of cssVars) {
-      root.style.setProperty(cssVar, value);
-    }
-  }
-
-  root.dataset.theme = webApp.colorScheme;
+  webApp.setHeaderColor?.("#ffffff");
+  webApp.setBackgroundColor?.("#ffffff");
 }
 
 export function initTelegramWebApp() {
@@ -108,6 +87,5 @@ export function initTelegramWebApp() {
 
   webApp.ready();
   webApp.expand();
-  applyTelegramTheme();
-  webApp.onEvent("themeChanged", applyTelegramTheme);
+  applyTelegramChrome();
 }

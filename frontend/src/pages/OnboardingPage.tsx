@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import Alert from "@/components/Alert";
+import BrandMark from "@/components/BrandMark";
 import { completeOnboarding as submitOnboarding } from "@/api/auth";
 import { extractErrorMessage } from "@/api/client";
 import { useAuth } from "@/context/AuthContext";
@@ -51,11 +52,8 @@ export default function OnboardingPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col px-4 pb-28 pt-10">
-      <div
-        className="mb-6 flex h-12 w-12 items-center justify-center rounded-full text-2xl"
-        style={{ background: "color-mix(in srgb, var(--color-accent-gold) 18%, transparent)" }}
-      >
-        ⭐
+      <div className="mb-6">
+        <BrandMark size={48} />
       </div>
 
       <h1 className="text-[22px] font-semibold leading-tight" style={{ color: "var(--color-text)" }}>

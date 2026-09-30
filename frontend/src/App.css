@@ -1,15 +1,18 @@
 :root {
-  --color-bg: #f5f6fa;
+  --color-bg: #ffffff;
   --color-surface: #ffffff;
-  --color-border: #e2e5ea;
-  --color-primary: #2f6fed;
-  --color-primary-dark: #2457c2;
+  --color-border: #e3e5f0;
+  /* Синий из лого (пузырь с галочкой + надпись "AI") */
+  --color-primary: #3d5fea;
+  --color-primary-dark: #2c48c9;
   --color-danger: #e0473f;
   --color-danger-dark: #c23a33;
   --color-success: #2fa96a;
-  --color-text: #1c2230;
-  --color-text-muted: #6b7280;
-  --color-accent-gold: #d9a441;
+  --color-text: #14141f;
+  --color-text-muted: #6b7085;
+  /* Фиолетово-синий градиент из лого — для "фирменных" моментов (иконки-бейджи) */
+  --color-brand-start: #8b7cf6;
+  --color-brand-end: #3d5fea;
   --radius: 10px;
 
   /* Алиасы под shadcn/ui-компоненты (Input и т.д.) — те же токены, другие имена */
@@ -24,34 +27,24 @@
   --destructive: var(--color-danger);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --color-bg: #14171f;
-    --color-surface: #1c2029;
-    --color-border: #2c313d;
-    --color-primary: #5b8bf5;
-    --color-primary-dark: #7ba0f7;
-    --color-danger: #f0645c;
-    --color-danger-dark: #f58a84;
-    --color-success: #4bc487;
-    --color-text: #e8eaf0;
-    --color-text-muted: #9aa1b0;
-    --color-accent-gold: #e6b655;
-  }
-}
+/* Тема фиксированная бело-синяя — намеренно НЕ переключаем автоматически по
+   системному prefers-color-scheme, чтобы дизайн не "плыл" от устройства к
+   устройству. Тёмный вариант остаётся доступен только явным data-theme="dark"
+   (задел на будущее — переключатель темы в Настройках), а не как дефолт. */
 
 :root[data-theme="dark"] {
-  --color-bg: #14171f;
-  --color-surface: #1c2029;
-  --color-border: #2c313d;
-  --color-primary: #5b8bf5;
-  --color-primary-dark: #7ba0f7;
+  --color-bg: #13141d;
+  --color-surface: #1b1c28;
+  --color-border: #2a2c3b;
+  --color-primary: #7c8cf5;
+  --color-primary-dark: #9aa7f8;
   --color-danger: #f0645c;
   --color-danger-dark: #f58a84;
   --color-success: #4bc487;
-  --color-text: #e8eaf0;
-  --color-text-muted: #9aa1b0;
-  --color-accent-gold: #e6b655;
+  --color-text: #edeef5;
+  --color-text-muted: #9a9db3;
+  --color-brand-start: #9d90f9;
+  --color-brand-end: #7c8cf5;
 }
 
 * {
@@ -68,80 +61,168 @@ body {
   color: var(--color-text);
 }
 
+/* Mini App — мобильный shell: контент сверху, навигация закреплена снизу
+   (аналог нижней панели в самом Telegram), а не десктопный сайдбар */
 .app-shell {
-  display: flex;
   min-height: 100vh;
-}
-
-.sidebar {
-  width: 240px;
-  flex-shrink: 0;
-  background: var(--color-surface);
-  border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
-  padding: 24px 16px;
-}
-
-.brand {
-  font-weight: 700;
-  font-size: 18px;
-  margin-bottom: 24px;
-  padding: 0 8px;
-}
-
-.sidebar nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
-
-.nav-link {
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  color: var(--color-text-muted);
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.nav-link:hover {
-  background: var(--color-bg);
-  color: var(--color-text);
-}
-
-.nav-link.active {
-  background: var(--color-primary);
-  color: #fff;
-}
-
-.sidebar-footer {
-  border-top: 1px solid var(--color-border);
-  padding-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.user-info {
-  padding: 0 8px;
-}
-
-.user-name {
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.user-email {
-  font-size: 12px;
-  color: var(--color-text-muted);
 }
 
 .content {
   flex: 1;
-  padding: 32px 40px;
-  max-width: 1100px;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px 16px calc(84px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+}
+
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.bottom-nav-item .bottom-nav-icon {
+  font-size: 19px;
+  line-height: 1;
+}
+
+.bottom-nav-item.active {
+  color: var(--color-primary);
+}
+
+/* Карточки-строки — замена таблиц на мобильном экране, каждая строка это
+   независимая "плитка" со своими действиями, а не колонка в таблице */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.list-row {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.list-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.list-row-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.list-row-sub {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.list-row-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.status-dot.on {
+  background: var(--color-success);
+}
+
+.status-dot.off {
+  background: var(--color-danger);
+}
+
+.expand-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nested-list {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nested-row {
+  background: var(--color-bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+/* Плитки статистики на главной */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.stat-tile {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
 }
 
 .page-loading {
@@ -338,32 +419,58 @@ body {
   border: 1px solid #c4d8fa;
 }
 
-/* Modal */
+/* Modal — на мобильном выезжает снизу (bottom sheet), это нативный паттерн
+   Telegram/iOS/Android, а не подвешенное по центру десктопное окно */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 20, 30, 0.4);
+  background: rgba(15, 20, 30, 0.45);
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   z-index: 100;
 }
 
 .modal {
   background: var(--color-surface);
-  border-radius: var(--radius);
-  width: 480px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 64px);
+  border-radius: 16px 16px 0 0;
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100vh - 48px);
   overflow-y: auto;
-  padding: 0;
+  padding: 0 0 env(safe-area-inset-bottom);
+  animation: sheet-up 0.18s ease-out;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(20px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-grabber {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 0;
+}
+
+.modal-grabber span {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
 }
 
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 20px;
+  padding: 14px 20px 18px;
   border-bottom: 1px solid var(--color-border);
 }
 

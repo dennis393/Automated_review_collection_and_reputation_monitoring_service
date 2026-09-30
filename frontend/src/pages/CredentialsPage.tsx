@@ -5,25 +5,32 @@ import {
   disconnectMarketplace,
   getCredentials,
   updateCredentialToken,
-} from "../api/credentials";
-import { viewCompanies } from "../api/companies";
-import type { CompanyResponse, CredentialPlatform, CredentialResponse } from "../types";
-import Alert from "../components/Alert";
-import Modal from "../components/Modal";
-import { extractErrorMessage } from "../api/client";
+} from "@/api/credentials";
+import { viewCompanies } from "@/api/companies";
+import type { CompanyResponse, CredentialPlatform, CredentialResponse } from "@/types";
+import Alert from "@/components/Alert";
+import Modal from "@/components/Modal";
+import { extractErrorMessage } from "@/api/client";
 
-const PLATFORMS: CredentialPlatform[] = ["wildberries", "ozon", "yandex_market", "uzum"];
+const PLATFORMS: { value: CredentialPlatform; label: string; icon: string }[] = [
+  { value: "wildberries", label: "Wildberries", icon: "🟣" },
+  { value: "ozon", label: "Ozon", icon: "🔵" },
+  { value: "yandex_market", label: "Yandex Market", icon: "🟡" },
+  { value: "uzum", label: "Uzum", icon: "🟢" },
+];
+
+function platformMeta(p: string) {
+  return PLATFORMS.find((x) => x.value === p) ?? { label: p, icon: "🛍" };
+}
 
 export default function CredentialsPage() {
   const [credentials, setCredentials] = useState<CredentialResponse[]>([]);
-  const [companies, setCompanies] = useState<CompanyResponse[]>([]);
+  const [company, setCompany] = useState<CompanyResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [companyId, setCompanyId] = useState<number | "">("");
-  const [platform, setPlatform] = useState<CredentialPlatform>("wildberries");
+  const [connecting, setConnecting] = useState<CredentialPlatform | null>(null);
   const [token, setToken] = useState("");
   const [clientId, setClientId] = useState("");
   const [campaignId, setCampaignId] = useState("");
@@ -37,9 +44,9 @@ export default function CredentialsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [creds, comps] = await Promise.all([getCredentials(), viewCompanies()]);
+      const [creds, companies] = await Promise.all([getCredentials(), viewCompanies()]);
       setCredentials(creds);
-      setCompanies(comps);
+      setCompany(companies[0] ?? null);
     } catch (err) {
       setError(extractErrorMessage(err));
     } finally {
@@ -51,11 +58,7 @@ export default function CredentialsPage() {
     load();
   }, []);
 
-  function companyName(id: number) {
-    return companies.find((c) => c.id === id)?.company_name ?? `#${id}`;
-  }
-
-  function resetCreateForm() {
+  function resetForm() {
     setToken("");
     setClientId("");
     setCampaignId("");
@@ -63,23 +66,28 @@ export default function CredentialsPage() {
     setShopId("");
   }
 
-  async function handleCreate(e: FormEvent) {
+  function openConnect(platform: CredentialPlatform) {
+    resetForm();
+    setConnecting(platform);
+  }
+
+  async function handleConnect(e: FormEvent) {
     e.preventDefault();
-    if (companyId === "") return;
+    if (!company || !connecting) return;
     setSubmitting(true);
     setError(null);
     try {
       await createCredential({
-        company_id: Number(companyId),
-        platform,
+        company_id: company.id,
+        platform: connecting,
         token,
         client_id: clientId || undefined,
         campaign_id: campaignId || undefined,
         business_id: businessId || undefined,
         shop_id: shopId || undefined,
       });
-      setShowCreate(false);
-      resetCreateForm();
+      setConnecting(null);
+      resetForm();
       await load();
     } catch (err) {
       setError(extractErrorMessage(err));
@@ -110,7 +118,7 @@ export default function CredentialsPage() {
   }
 
   async function handleDisconnect(c: CredentialResponse) {
-    if (!confirm(`Отключить подключение "${c.platform}"?`)) return;
+    if (!confirm(`Отключить ${platformMeta(c.platform).label}?`)) return;
     setError(null);
     try {
       await disconnectMarketplace(c.id);
@@ -120,122 +128,94 @@ export default function CredentialsPage() {
     }
   }
 
+  const connectingMeta = connecting ? platformMeta(connecting) : null;
+
   return (
     <div className="page">
       <div className="page-header">
-        <h1>Подключения маркетплейсов</h1>
-        <button
-          className="btn btn-primary"
-          onClick={() => setShowCreate(true)}
-          disabled={companies.length === 0}
-        >
-          + Новое подключение
-        </button>
+        <h1>Маркетплейсы</h1>
       </div>
       <Alert message={error} />
+
       {loading ? (
         <p>Загрузка...</p>
-      ) : credentials.length === 0 ? (
-        <p className="empty-state">Подключений пока нет.</p>
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Платформа</th>
-              <th>Компания</th>
-              <th>Активен</th>
-              <th>Создан</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {credentials.map((c) => (
-              <tr key={c.id}>
-                <td>{c.platform}</td>
-                <td>{companyName(c.company_id)}</td>
-                <td>{c.is_active ? "Да" : "Нет"}</td>
-                <td>{new Date(c.created_at).toLocaleDateString()}</td>
-                <td className="actions-cell">
-                  <button className="btn btn-secondary btn-sm" onClick={() => openEdit(c)}>
-                    Обновить токен
-                  </button>
-                  <button
-                    className="btn btn-danger btn-sm"
-                    onClick={() => handleDisconnect(c)}
-                  >
-                    Отключить
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="list">
+          {PLATFORMS.map((p) => {
+            const cred = credentials.find((c) => c.platform === p.value);
+            return (
+              <div className="list-row" key={p.value}>
+                <div className="list-row-top">
+                  <div className="list-row-title">
+                    <span style={{ marginRight: 8 }}>{p.icon}</span>
+                    {p.label}
+                  </div>
+                  {cred && (
+                    <span
+                      className={`status-dot ${cred.is_active ? "on" : "off"}`}
+                      title={cred.is_active ? "Подключён" : "Токен протух"}
+                    />
+                  )}
+                </div>
+                {cred ? (
+                  <>
+                    <div className="list-row-sub">
+                      {cred.is_active ? "Подключён" : "Токен недействителен — обнови его"}
+                    </div>
+                    <div className="list-row-actions">
+                      <button className="btn btn-secondary btn-sm" onClick={() => openEdit(cred)}>
+                        Обновить токен
+                      </button>
+                      <button className="btn btn-danger btn-sm" onClick={() => handleDisconnect(cred)}>
+                        Отключить
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="list-row-actions">
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => openConnect(p.value)}
+                      disabled={!company}
+                    >
+                      Подключить
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
 
-      {showCreate && (
-        <Modal title="Новое подключение" onClose={() => setShowCreate(false)}>
-          <form onSubmit={handleCreate}>
+      {connecting && connectingMeta && (
+        <Modal title={`Подключить ${connectingMeta.label}`} onClose={() => setConnecting(null)}>
+          <form onSubmit={handleConnect}>
             <label>
-              Компания
-              <select
-                required
-                value={companyId}
-                onChange={(e) => setCompanyId(Number(e.target.value))}
-              >
-                <option value="" disabled>
-                  Выберите компанию
-                </option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.company_name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Платформа
-              <select
-                value={platform}
-                onChange={(e) => setPlatform(e.target.value as CredentialPlatform)}
-              >
-                {PLATFORMS.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Токен
+              Токен продавца
               <input required value={token} onChange={(e) => setToken(e.target.value)} />
             </label>
-            {platform === "ozon" && (
+            {connecting === "ozon" && (
               <label>
                 Client ID
-                <input value={clientId} onChange={(e) => setClientId(e.target.value)} />
+                <input required value={clientId} onChange={(e) => setClientId(e.target.value)} />
               </label>
             )}
-            {platform === "yandex_market" && (
+            {connecting === "yandex_market" && (
               <>
                 <label>
                   Campaign ID
-                  <input
-                    value={campaignId}
-                    onChange={(e) => setCampaignId(e.target.value)}
-                  />
+                  <input required value={campaignId} onChange={(e) => setCampaignId(e.target.value)} />
                 </label>
                 <label>
                   Business ID
-                  <input
-                    value={businessId}
-                    onChange={(e) => setBusinessId(e.target.value)}
-                  />
+                  <input value={businessId} onChange={(e) => setBusinessId(e.target.value)} />
                 </label>
               </>
             )}
-            {(platform === "wildberries" || platform === "uzum") && (
+            {(connecting === "wildberries" || connecting === "uzum") && (
               <label>
-                Shop ID
+                ID магазина (необязательно)
                 <input value={shopId} onChange={(e) => setShopId(e.target.value)} />
               </label>
             )}
@@ -247,15 +227,14 @@ export default function CredentialsPage() {
       )}
 
       {editing && (
-        <Modal title={`Обновить токен: ${editing.platform}`} onClose={() => setEditing(null)}>
+        <Modal
+          title={`Обновить токен: ${platformMeta(editing.platform).label}`}
+          onClose={() => setEditing(null)}
+        >
           <form onSubmit={handleEdit}>
             <label>
               Новый токен
-              <input
-                required
-                value={editToken}
-                onChange={(e) => setEditToken(e.target.value)}
-              />
+              <input required value={editToken} onChange={(e) => setEditToken(e.target.value)} />
             </label>
             <button className="btn btn-primary" type="submit" disabled={submitting}>
               {submitting ? "Сохраняем..." : "Сохранить"}

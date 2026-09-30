@@ -3,9 +3,8 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import Layout from "./components/Layout";
 import EntryStatusPage from "./pages/EntryStatusPage";
 import OnboardingPage from "./pages/OnboardingPage";
-import CompaniesPage from "./pages/CompaniesPage";
+import DashboardPage from "./pages/DashboardPage";
 import FilialsPage from "./pages/FilialsPage";
-import SourcesPage from "./pages/SourcesPage";
 import CredentialsPage from "./pages/CredentialsPage";
 import ReviewsPage from "./pages/ReviewsPage";
 import "./App.css";
@@ -14,10 +13,9 @@ function AppRoutes() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<Navigate to="/companies" replace />} />
-        <Route path="/companies" element={<CompaniesPage />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/filials" element={<FilialsPage />} />
-        <Route path="/sources" element={<SourcesPage />} />
         <Route path="/credentials" element={<CredentialsPage />} />
         <Route path="/reviews" element={<ReviewsPage />} />
       </Route>
