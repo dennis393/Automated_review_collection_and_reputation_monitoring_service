@@ -1,9 +1,7 @@
 from API_Dev_B.config import settings
-from openrouter import OpenRouter
-import sys
 from openai import AsyncOpenAI
 
-client = AsyncOpenAI(api_key=settings.OPENROUTER_TOKEN, base_url="https://openrouter.ai/api/v1")#Ссылка на openrouter чтобы подключать любую беспл. моодель
+client = AsyncOpenAI(api_key=settings.OPENAI_TOKEN)
 
 async def generate_draft(review_text: str, company_name: str, company_description: str, platform: str, rating: int, product_name: str = None, ai_style: str = "neutral"):
     # Стиль ответа
@@ -11,7 +9,7 @@ async def generate_draft(review_text: str, company_name: str, company_descriptio
         "formal": "Отвечай официально и профессионально.",
         "casual": "Отвечай дружелюбно и тепло.",
         "neutral": "Отвечай нейтрально и вежливо."
-    }.get(ai_style, "Отвечай нейтрально и вежливо.")
+    }.get(ai_style, "Отвечай нейтрально и вежливо.") # выберет neutral по дефолту если по какой то причине будет пусто  
     
     system_prompt = f"""
 Ты — менеджер компании «{company_name}».
@@ -31,13 +29,13 @@ async def generate_draft(review_text: str, company_name: str, company_descriptio
 """
 
     response = await client.chat.completions.create(
-    model="openrouter/free",
+    model="gpt-4o-mini",
     messages=[
         
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
-    ]
-    temperature= 0.7
-    stream=True
+    ],
+    temperature= 0.7,
+    stream=False
 )
     return response.choices[0].message.content

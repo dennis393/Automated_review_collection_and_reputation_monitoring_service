@@ -100,8 +100,8 @@ class MonitoringResourses(Base):
     filial_id: Mapped[int] = mapped_column(ForeignKey("filials.id", ondelete="CASCADE"), nullable=False)
     platform: Mapped[str] = mapped_column(platforms, nullable=False)
     platform_type: Mapped[str] = mapped_column(platformType, nullable=False)
-    url: Mapped[str] = mapped_column(Text)
-    marketplace_shop_id_only: Mapped[str] = mapped_column(String(255))
+    url: Mapped[Optional[str]] = mapped_column(Text, nullable=True) #только для карт
+    marketplace_shop_id_only: Mapped[Optional[str]] = mapped_column(String(255), nullable=True) #только для маркетплейсов
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)#Для разраб.А, "Последняя проверка"
     filial: Mapped["Filials"] = relationship(back_populates="resourses")

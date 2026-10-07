@@ -1,4 +1,10 @@
 import asyncio
+import os
+import sys
+
+# Корень репозитория — чтобы были видны пакеты вне API_Dev_B/ (например, Dev_A/llm)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from config import settings
 
 from aiogram import Bot, Dispatcher,types    
@@ -10,14 +16,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.orm import selectinload
-
-# LLM-модуль — зона Dev A, ещё в разработке. Импорт отказоустойчивый:
-# если он не готов/падает, бот всё равно запускается, просто без черновиков от ИИ.
-try:
-    from Dev_A.llm.draft_generator import generate_draft
-except Exception as import_error:
-    print(f"⚠️ LLM-модуль недоступен ({import_error}), черновики будут заглушкой")
-    generate_draft = None
+from Dev_A.llm.draft_generator import generate_draft
 
 
 dp = Dispatcher()
@@ -274,17 +273,14 @@ async def polling_new_drafts(bot: Bot): #Фоновая задача
                     print(f"⚠️ Пропуск отзыва ID {review.id}: У пользователя {user.id} (Компания: {company.company_name}) НЕ ПРИВЯЗАН Telegram-чат (id_telegram_chat равен None)!")
                     continue # Переходим к следующему отзыву, цикл не ломается
                 
-                if generate_draft:
-                    generated_text = await generate_draft(
-                        review_text=review.text_review,
-                        company_name=company.company_name,
-                        company_description=company.company_description,
-                        platform=review.source.platform,
-                        rating=review.rating,
-                        product_name=review.product_name,
-                        ai_style=user.ai_style or "neutral")
-                else:
-                    generated_text = "[Черновик недоступен — LLM ещё не настроен]"
+                generated_text = await generate_draft(
+                    review_text=review.text_review,
+                    company_name=company.company_name,
+                    company_description=company.company_description,
+                    platform=review.source.platform,
+                    rating=review.rating,
+                    product_name=review.product_name,
+                    ai_style=user.ai_style or "neutral")
                 
                 new_draft = AiDrafts(
                 review_id=review.id,
