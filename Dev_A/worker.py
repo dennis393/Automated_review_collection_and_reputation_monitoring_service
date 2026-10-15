@@ -1,10 +1,10 @@
 import asyncio
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "API_Dev_B"))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "API_Dev_B"))
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -87,7 +87,10 @@ async def run_cycle():
         )
         sources = res.scalars().all()
 
-        now = datetime.utcnow()
+        # last_checked_at в БД наивный (без таймзоны) — держим now() тоже наивным,
+        # просто считаем его через не-deprecated API, иначе вычитание ниже упадёт
+        # с TypeError (naive - aware datetime)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         for source in sources:
             if not due_for_check(source, now):
                 continue

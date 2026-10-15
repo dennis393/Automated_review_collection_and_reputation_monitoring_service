@@ -1,0 +1,67 @@
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    container_name: postgres_db
+    restart: always
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data  # Сохранение данных на диск хоста
+    networks:
+      - app-network
+
+  
+  web:
+    build: .
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+    container_name: fastapi_web
+    restart: always
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    networks:
+      - app-network
+
+  bot:
+    build: .
+    restart: always
+    command: python API_Dev_B/tg_bot.py
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+    depends_on:
+      - db
+    networks:
+      - app-network
+
+  worker:
+    build: .
+    restart: always
+    command: python Dev_A/worker.py
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+    depends_on:
+      - db
+    networks:
+      - app-network 
+      
+
+# 1. Объявляем тома (хранилища)
+volumes:
+  pg_data:
+
+# 2. Объявляем изолированную сеть
+networks:
+  app-network:
+    driver: bridge
